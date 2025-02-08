@@ -35,21 +35,43 @@ export class FirecrawlService {
     }
 
     try {
-      // Simulation for now - replace with actual API call
+      // Simulation of fetching prices from multiple stores
+      // This will be replaced with actual API calls to different stores
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       return {
         success: true,
         data: {
           status: "completed",
-          completed: 3,
-          total: 3,
+          completed: 5,
+          total: 5,
           creditsUsed: 1,
           expiresAt: new Date(Date.now() + 86400000).toISOString(),
           data: [
-            { site: "Store A", price: "$99.99" },
-            { site: "Store B", price: "$89.99" },
-            { site: "Store C", price: "$109.99" }
+            { 
+              store: "D-Mart",
+              price: "₹899",
+              url: "https://www.dmart.in"
+            },
+            { 
+              store: "Reliance Mart",
+              price: "₹949",
+              url: "https://www.reliancemart.in"
+            },
+            { 
+              store: "Amazon",
+              price: "₹999",
+              url: "https://www.amazon.in"
+            },
+            { 
+              store: "Flipkart",
+              price: "₹929",
+              url: "https://www.flipkart.com"
+            },
+            { 
+              store: "Local Store",
+              price: "₹999",
+            }
           ]
         }
       };

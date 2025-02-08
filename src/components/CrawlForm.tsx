@@ -6,7 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { FirecrawlService } from "@/utils/FirecrawlService";
 import { Card } from "@/components/ui/card";
-import { Search } from "lucide-react";
+import { Search, Store } from "lucide-react";
+
+interface StorePrice {
+  store: string;
+  price: string;
+  url?: string;
+}
 
 interface CrawlResult {
   success: boolean;
@@ -15,12 +21,13 @@ interface CrawlResult {
   total?: number;
   creditsUsed?: number;
   expiresAt?: string;
-  data?: any[];
+  data?: StorePrice[];
 }
 
 export const CrawlForm = () => {
   const { toast } = useToast();
   const [url, setUrl] = useState("");
+  const [productName, setProductName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [crawlResult, setCrawlResult] = useState<CrawlResult | null>(null);
@@ -72,13 +79,21 @@ export const CrawlForm = () => {
   return (
     <div className="space-y-6">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-2">
+        <div className="space-y-4">
+          <Input
+            type="text"
+            value={productName}
+            onChange={(e) => setProductName(e.target.value)}
+            className="w-full"
+            placeholder="Enter product name (e.g., iPhone 13)"
+            required
+          />
           <Input
             type="url"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            className="w-full transition-all"
-            placeholder="Enter product URL"
+            className="w-full"
+            placeholder="Enter product URL to compare"
             required
           />
         </div>
@@ -95,20 +110,34 @@ export const CrawlForm = () => {
         </Button>
       </form>
 
-      {crawlResult && (
-        <Card className="p-4 animate-fade-in">
-          <h3 className="text-lg font-semibold mb-2">Results</h3>
-          <div className="space-y-2 text-sm">
-            <p>Status: {crawlResult.status}</p>
-            <p>Found Prices: {crawlResult.completed}</p>
-            {crawlResult.data && (
-              <div className="mt-4">
-                <p className="font-semibold mb-2">Price Data:</p>
-                <pre className="bg-muted p-2 rounded overflow-auto max-h-60">
-                  {JSON.stringify(crawlResult.data, null, 2)}
-                </pre>
+      {crawlResult && crawlResult.data && (
+        <Card className="p-6 animate-fade-in">
+          <h3 className="text-xl font-semibold mb-4">Price Comparison Results</h3>
+          <div className="space-y-4">
+            {crawlResult.data.map((item, index) => (
+              <div
+                key={index}
+                className="flex items-center justify-between p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Store className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <h4 className="font-medium">{item.store}</h4>
+                    <p className="text-2xl font-bold text-primary">{item.price}</p>
+                  </div>
+                </div>
+                {item.url && (
+                  <Button
+                    variant="outline"
+                    onClick={() => window.open(item.url, '_blank')}
+                  >
+                    Visit Store
+                  </Button>
+                )}
               </div>
-            )}
+            ))}
           </div>
         </Card>
       )}
