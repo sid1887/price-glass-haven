@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { FirecrawlService } from "@/utils/FirecrawlService";
 import { Card } from "@/components/ui/card";
-import { Search, Store, SwitchCamera } from "lucide-react";
+import { Search, Store, Settings } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 interface StorePrice {
   store: string;
@@ -32,6 +33,25 @@ export const CrawlForm = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [crawlResult, setCrawlResult] = useState<CrawlResult | null>(null);
+  const [apiKeys, setApiKeys] = useState({
+    AMAZON: "",
+    FLIPKART: "",
+    DMART: "",
+    RELIANCE: ""
+  });
+
+  const handleApiKeySubmit = () => {
+    Object.entries(apiKeys).forEach(([store, key]) => {
+      if (key) {
+        FirecrawlService.saveApiKey(store as keyof typeof apiKeys, key);
+      }
+    });
+    
+    toast({
+      title: "Success",
+      description: "API keys have been saved",
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,16 +60,6 @@ export const CrawlForm = () => {
     setCrawlResult(null);
 
     try {
-      const apiKey = FirecrawlService.getApiKey();
-      if (!apiKey) {
-        toast({
-          title: "API Key Required",
-          description: "Please set your API key first",
-          variant: "destructive",
-        });
-        return;
-      }
-
       let searchTerm = url || productName;
       console.log('Searching for:', searchTerm);
       
@@ -82,6 +92,41 @@ export const CrawlForm = () => {
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold">Price Comparison</h2>
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="icon">
+              <Settings className="h-4 w-4" />
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Store API Keys</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              {Object.entries(apiKeys).map(([store, key]) => (
+                <div key={store} className="space-y-2">
+                  <label className="text-sm font-medium">{store}</label>
+                  <Input
+                    type="password"
+                    value={key}
+                    onChange={(e) => setApiKeys(prev => ({
+                      ...prev,
+                      [store]: e.target.value
+                    }))}
+                    placeholder={`Enter ${store} API Key`}
+                  />
+                </div>
+              ))}
+              <Button onClick={handleApiKeySubmit} className="w-full">
+                Save API Keys
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
       <Tabs defaultValue="product" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="product">Search by Product Name</TabsTrigger>
@@ -95,7 +140,7 @@ export const CrawlForm = () => {
               value={productName}
               onChange={(e) => {
                 setProductName(e.target.value);
-                setUrl(""); // Clear URL when product name is entered
+                setUrl("");
               }}
               className="w-full"
               placeholder="Enter product name (e.g., iPhone 13)"
@@ -109,7 +154,7 @@ export const CrawlForm = () => {
               value={url}
               onChange={(e) => {
                 setUrl(e.target.value);
-                setProductName(""); // Clear product name when URL is entered
+                setProductName("");
               }}
               className="w-full"
               placeholder="Enter product URL to compare"
