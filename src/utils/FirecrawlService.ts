@@ -28,7 +28,7 @@ export class FirecrawlService {
     return localStorage.getItem(this.API_KEY_STORAGE_KEY);
   }
 
-  static async crawlWebsite(url: string): Promise<{ success: boolean; error?: string; data?: any }> {
+  static async crawlWebsite(searchTerm: string): Promise<{ success: boolean; error?: string; data?: any }> {
     const apiKey = this.getApiKey();
     if (!apiKey) {
       return { success: false, error: "API key not found" };
@@ -38,6 +38,9 @@ export class FirecrawlService {
       // Simulation of fetching prices from multiple stores
       // This will be replaced with actual API calls to different stores
       await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Simulate different results based on whether it's a URL or product name
+      const isUrl = searchTerm.startsWith('http');
       
       return {
         success: true,
@@ -51,7 +54,7 @@ export class FirecrawlService {
             { 
               store: "D-Mart",
               price: "₹899",
-              url: "https://www.dmart.in"
+              url: isUrl ? searchTerm : "https://www.dmart.in"
             },
             { 
               store: "Reliance Mart",

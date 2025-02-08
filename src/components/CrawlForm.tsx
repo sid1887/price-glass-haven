@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { FirecrawlService } from "@/utils/FirecrawlService";
 import { Card } from "@/components/ui/card";
-import { Search, Store } from "lucide-react";
+import { Search, Store, SwitchCamera } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface StorePrice {
   store: string;
@@ -49,7 +50,10 @@ export const CrawlForm = () => {
         return;
       }
 
-      const result = await FirecrawlService.crawlWebsite(url);
+      let searchTerm = url || productName;
+      console.log('Searching for:', searchTerm);
+      
+      const result = await FirecrawlService.crawlWebsite(searchTerm);
       if (result.success) {
         toast({
           title: "Success",
@@ -78,37 +82,53 @@ export const CrawlForm = () => {
 
   return (
     <div className="space-y-6">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-4">
-          <Input
-            type="text"
-            value={productName}
-            onChange={(e) => setProductName(e.target.value)}
-            className="w-full"
-            placeholder="Enter product name (e.g., iPhone 13)"
-            required
-          />
-          <Input
-            type="url"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            className="w-full"
-            placeholder="Enter product URL to compare"
-            required
-          />
-        </div>
+      <Tabs defaultValue="product" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="product">Search by Product Name</TabsTrigger>
+          <TabsTrigger value="url">Search by URL</TabsTrigger>
+        </TabsList>
+        
+        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+          <TabsContent value="product">
+            <Input
+              type="text"
+              value={productName}
+              onChange={(e) => {
+                setProductName(e.target.value);
+                setUrl(""); // Clear URL when product name is entered
+              }}
+              className="w-full"
+              placeholder="Enter product name (e.g., iPhone 13)"
+              required={!url}
+            />
+          </TabsContent>
 
-        {isLoading && <Progress value={progress} className="w-full" />}
+          <TabsContent value="url">
+            <Input
+              type="url"
+              value={url}
+              onChange={(e) => {
+                setUrl(e.target.value);
+                setProductName(""); // Clear product name when URL is entered
+              }}
+              className="w-full"
+              placeholder="Enter product URL to compare"
+              required={!productName}
+            />
+          </TabsContent>
 
-        <Button
-          type="submit"
-          disabled={isLoading}
-          className="w-full group"
-        >
-          <Search className="mr-2 h-4 w-4 transition-transform group-hover:scale-110" />
-          {isLoading ? "Searching..." : "Compare Prices"}
-        </Button>
-      </form>
+          {isLoading && <Progress value={progress} className="w-full" />}
+
+          <Button
+            type="submit"
+            disabled={isLoading || (!url && !productName)}
+            className="w-full group"
+          >
+            <Search className="mr-2 h-4 w-4 transition-transform group-hover:scale-110" />
+            {isLoading ? "Searching..." : "Compare Prices"}
+          </Button>
+        </form>
+      </Tabs>
 
       {crawlResult && crawlResult.data && (
         <Card className="p-6 animate-fade-in">
