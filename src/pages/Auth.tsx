@@ -27,6 +27,7 @@ export default function Auth() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("Auth state changed:", event, session);
       if (session) {
         navigate("/");
       }
@@ -49,6 +50,7 @@ export default function Auth() {
         description: "Check your email for the confirmation link.",
       });
     } catch (error: any) {
+      console.error("Sign up error:", error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -69,6 +71,7 @@ export default function Auth() {
       });
       if (error) throw error;
     } catch (error: any) {
+      console.error("Sign in error:", error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -81,11 +84,18 @@ export default function Auth() {
 
   const handleGoogleSignIn = async () => {
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
+        options: {
+          redirectTo: window.location.origin
+        }
       });
+      
+      console.log("Google sign in attempt:", { data, error });
+      
       if (error) throw error;
     } catch (error: any) {
+      console.error("Google sign in error:", error);
       toast({
         variant: "destructive",
         title: "Error",
