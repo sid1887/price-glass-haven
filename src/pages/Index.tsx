@@ -2,12 +2,21 @@
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { CrawlForm } from "@/components/CrawlForm";
 import { Button } from "@/components/ui/button";
-import { BarChart3, Globe, Search, Zap } from "lucide-react";
+import { BarChart3, Globe, Search, Zap, LogIn } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const Index = () => {
+  const navigate = useNavigate();
+
   return (
     <div className="min-h-screen w-full bg-background text-foreground overflow-x-hidden">
-      <ThemeToggle />
+      <div className="container flex justify-between items-center py-4">
+        <ThemeToggle />
+        <Button variant="outline" onClick={() => navigate("/auth")}>
+          <LogIn className="mr-2 h-4 w-4" />
+          Sign In
+        </Button>
+      </div>
       
       <main className="space-y-24">
         {/* Hero Section */}
