@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -83,23 +83,38 @@ export default function Auth() {
   };
 
   const handleGoogleSignIn = async () => {
+    setLoading(true);
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: window.location.origin
+          redirectTo: 'https://2308e48a-46a5-4742-8cfc-6d3433df34ed.lovableproject.com/auth',
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
         }
       });
       
       console.log("Google sign in attempt:", { data, error });
       
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
+      
+      // Show loading toast since we're about to redirect
+      toast({
+        title: "Redirecting to Google...",
+        description: "Please wait while we redirect you to Google sign in.",
+      });
+      
     } catch (error: any) {
       console.error("Google sign in error:", error);
+      setLoading(false);
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message,
+        description: error.message || "Failed to sign in with Google",
       });
     }
   };
@@ -170,7 +185,7 @@ export default function Auth() {
               <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
             </div>
           </div>
-          <Button variant="outline" type="button" onClick={handleGoogleSignIn} className="w-full">
+          <Button variant="outline" type="button" onClick={handleGoogleSignIn} className="w-full" disabled={loading}>
             <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
               <path
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
