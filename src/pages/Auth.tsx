@@ -101,9 +101,8 @@ export default function Auth() {
     try {
       console.log("Starting Google sign in process...");
       
-      // Get the current URL and build the redirect URL
-      const baseUrl = window.location.origin;
-      const redirectTo = `${baseUrl}/auth`;
+      // Use the explicit project URL for redirect
+      const redirectTo = 'https://2308e48a-46a5-4742-8cfc-6d3433df34ed.lovableproject.com/auth';
       
       console.log("Using redirect URL:", redirectTo);
 
@@ -114,7 +113,6 @@ export default function Auth() {
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
-            hd: '*', // Allows any Google domain
           },
           scopes: 'email profile',
         }
