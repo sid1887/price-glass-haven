@@ -1,4 +1,3 @@
-
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -102,12 +101,10 @@ export default function Auth() {
     try {
       console.log("Starting Google sign in process...");
       
-      // Get the full URL including protocol
-      const redirectTo = `${window.location.protocol}//${window.location.host}/auth`;
+      // For local development
+      const redirectTo = 'http://localhost:5173/auth';
       
       console.log("Using redirect URL:", redirectTo);
-      console.log("Current location:", window.location.href);
-      console.log("Window origin:", window.location.origin);
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
