@@ -85,10 +85,14 @@ export default function Auth() {
   const handleGoogleSignIn = async () => {
     setLoading(true);
     try {
+      // Get the current URL for the redirect
+      const redirectTo = `${window.location.origin}/auth`;
+      console.log("Attempting Google sign in with redirect URL:", redirectTo);
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: 'https://2308e48a-46a5-4742-8cfc-6d3433df34ed.lovableproject.com/auth',
+          redirectTo,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
@@ -96,13 +100,12 @@ export default function Auth() {
         }
       });
       
-      console.log("Google sign in attempt:", { data, error });
-      
       if (error) {
         throw error;
       }
+
+      console.log("Google sign in response:", data);
       
-      // Show loading toast since we're about to redirect
       toast({
         title: "Redirecting to Google...",
         description: "Please wait while we redirect you to Google sign in.",
@@ -110,12 +113,12 @@ export default function Auth() {
       
     } catch (error: any) {
       console.error("Google sign in error:", error);
-      setLoading(false);
       toast({
         variant: "destructive",
         title: "Error",
         description: error.message || "Failed to sign in with Google",
       });
+      setLoading(false);
     }
   };
 
