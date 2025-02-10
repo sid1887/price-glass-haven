@@ -1,4 +1,3 @@
-
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +17,7 @@ export default function Auth() {
   useEffect(() => {
     // Check if user is already logged in
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log("Initial session check:", session);
       if (session) {
         navigate("/");
       }
@@ -33,8 +33,22 @@ export default function Auth() {
       }
     });
 
+    // Check for any error parameters in the URL
+    const params = new URLSearchParams(window.location.search);
+    const error = params.get('error');
+    const errorDescription = params.get('error_description');
+    
+    if (error) {
+      console.error("Auth error from URL:", error, errorDescription);
+      toast({
+        variant: "destructive",
+        title: "Authentication Error",
+        description: errorDescription || "Failed to authenticate",
+      });
+    }
+
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, toast]);
 
   const handleEmailSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,9 +99,13 @@ export default function Auth() {
   const handleGoogleSignIn = async () => {
     setLoading(true);
     try {
-      // Get the current URL for the redirect
-      const redirectTo = `${window.location.origin}/auth`;
-      console.log("Attempting Google sign in with redirect URL:", redirectTo);
+      console.log("Starting Google sign in process...");
+      
+      // Get the current URL and build the redirect URL
+      const baseUrl = window.location.origin;
+      const redirectTo = `${baseUrl}/auth`;
+      
+      console.log("Using redirect URL:", redirectTo);
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
@@ -96,15 +114,18 @@ export default function Auth() {
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
-          }
+            hd: '*', // Allows any Google domain
+          },
+          scopes: 'email profile',
         }
       });
       
       if (error) {
+        console.error("Google sign in returned error:", error);
         throw error;
       }
 
-      console.log("Google sign in response:", data);
+      console.log("Google sign in successful, data:", data);
       
       toast({
         title: "Redirecting to Google...",
@@ -118,6 +139,7 @@ export default function Auth() {
         title: "Error",
         description: error.message || "Failed to sign in with Google",
       });
+    } finally {
       setLoading(false);
     }
   };
