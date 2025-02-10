@@ -1,3 +1,4 @@
+
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -101,10 +102,12 @@ export default function Auth() {
     try {
       console.log("Starting Google sign in process...");
       
-      // Use the explicit project URL for redirect
-      const redirectTo = 'https://2308e48a-46a5-4742-8cfc-6d3433df34ed.lovableproject.com/auth';
+      // Get the full URL including protocol
+      const redirectTo = `${window.location.protocol}//${window.location.host}/auth`;
       
       console.log("Using redirect URL:", redirectTo);
+      console.log("Current location:", window.location.href);
+      console.log("Window origin:", window.location.origin);
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
@@ -114,7 +117,6 @@ export default function Auth() {
             access_type: 'offline',
             prompt: 'consent',
           },
-          scopes: 'email profile',
         }
       });
       
