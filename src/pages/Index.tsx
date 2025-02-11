@@ -1,5 +1,4 @@
 
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { CrawlForm } from "@/components/CrawlForm";
 import { Button } from "@/components/ui/button";
 import { BarChart3, Globe, Search, Zap, LogIn, Sparkles, ArrowRight } from "lucide-react";
@@ -16,7 +15,6 @@ const Index = () => {
           <h1 className="text-2xl font-bold text-gradient">CumPair</h1>
         </div>
         <div className="flex items-center gap-4">
-          <ThemeToggle />
           <Button 
             variant="secondary" 
             onClick={() => navigate("/auth")}
@@ -32,7 +30,7 @@ const Index = () => {
         {/* Hero Section */}
         <section className="container max-w-7xl mx-auto px-4 py-16 space-y-16">
           <div className="space-y-6 text-center max-w-3xl mx-auto">
-            <div className="inline-flex items-center justify-center px-4 py-1.5 mb-4 text-sm font-medium rounded-full bg-primary/10 text-primary animate-float">
+            <div className="inline-flex items-center justify-center px-4 py-1.5 mb-4 text-sm font-medium rounded-full bg-primary/10 text-primary">
               Compare Prices Like Never Before
             </div>
             <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-gradient">
