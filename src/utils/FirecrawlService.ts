@@ -64,9 +64,9 @@ export class FirecrawlService {
 
       const results = await this.simulateStoreResponse(url, true);
       
-      if (results.success && results.data.data) {
+      if (results.success) {
         // Save price records
-        const priceRecords = results.data.data.map(item => ({
+        const priceRecords = results.data.map(item => ({
           product_id: product.id,
           store_name: item.store,
           price: parseFloat(item.price.replace('₹', '')),
@@ -116,9 +116,9 @@ export class FirecrawlService {
 
       const results = await this.simulateStoreResponse(productName, false);
       
-      if (results.success && results.data.data) {
+      if (results.success) {
         // Save price records
-        const priceRecords = results.data.data.map(item => ({
+        const priceRecords = results.data.map(item => ({
           product_id: product.id,
           store_name: item.store,
           price: parseFloat(item.price.replace('₹', '')),
@@ -145,7 +145,7 @@ export class FirecrawlService {
     }
   }
 
-  static async crawlWebsite(searchTerm: string): Promise<{ success: boolean; error?: string; data?: any }> {
+  static async crawlWebsite(searchTerm: string): Promise<CrawlResponse> {
     const isUrl = searchTerm.startsWith('http');
     
     try {
@@ -167,39 +167,37 @@ export class FirecrawlService {
     // Simulation response for testing
     return Promise.resolve({
       success: true,
-      data: {
-        status: "completed",
-        completed: 5,
-        total: 5,
-        creditsUsed: 1,
-        expiresAt: new Date(Date.now() + 86400000).toISOString(),
-        data: [
-          { 
-            store: "D-Mart",
-            price: "₹899",
-            url: isUrl ? searchTerm : "https://www.dmart.in"
-          },
-          { 
-            store: "Reliance Mart",
-            price: "₹949",
-            url: "https://www.reliancemart.in"
-          },
-          { 
-            store: "Amazon",
-            price: "₹999",
-            url: "https://www.amazon.in"
-          },
-          { 
-            store: "Flipkart",
-            price: "₹929",
-            url: "https://www.flipkart.com"
-          },
-          { 
-            store: "Local Store",
-            price: "₹999",
-          }
-        ]
-      }
+      status: "completed",
+      completed: 5,
+      total: 5,
+      creditsUsed: 1,
+      expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      data: [
+        { 
+          store: "D-Mart",
+          price: "₹899",
+          url: isUrl ? searchTerm : "https://www.dmart.in"
+        },
+        { 
+          store: "Reliance Mart",
+          price: "₹949",
+          url: "https://www.reliancemart.in"
+        },
+        { 
+          store: "Amazon",
+          price: "₹999",
+          url: "https://www.amazon.in"
+        },
+        { 
+          store: "Flipkart",
+          price: "₹929",
+          url: "https://www.flipkart.com"
+        },
+        { 
+          store: "Local Store",
+          price: "₹999",
+        }
+      ]
     });
   }
 }
