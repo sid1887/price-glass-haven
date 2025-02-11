@@ -1,7 +1,15 @@
 
+import { supabase } from "@/integrations/supabase/client";
+
 interface ErrorResponse {
   success: false;
   error: string;
+}
+
+interface StorePrice {
+  store: string;
+  price: string;
+  url?: string;
 }
 
 interface CrawlStatusResponse {
@@ -11,7 +19,7 @@ interface CrawlStatusResponse {
   total: number;
   creditsUsed: number;
   expiresAt: string;
-  data: any[];
+  data: StorePrice[];
 }
 
 type CrawlResponse = CrawlStatusResponse | ErrorResponse;
@@ -33,25 +41,49 @@ export class FirecrawlService {
     return localStorage.getItem(store);
   }
 
-  static async searchByUrl(url: string): Promise<any> {
+  static async searchByUrl(url: string): Promise<CrawlResponse> {
     try {
-      // Determine store from URL
-      const store = Object.keys(this.API_KEYS).find(key => 
-        url.toLowerCase().includes(key.toLowerCase())
-      );
-
-      if (!store) {
-        return { success: false, error: "Unsupported store URL" };
+      const session = await supabase.auth.getSession();
+      if (!session.data.session) {
+        return { success: false, error: "Please sign in to compare prices" };
       }
 
-      const apiKey = this.getApiKey(store as keyof typeof FirecrawlService.API_KEYS);
-      if (!apiKey) {
-        return { success: false, error: `API key not found for ${store}` };
+      // First, create a product entry
+      const { data: product, error: productError } = await supabase
+        .from('products')
+        .insert([
+          { name: url, url: url }
+        ])
+        .select()
+        .single();
+
+      if (productError) {
+        console.error("Error creating product:", productError);
+        return { success: false, error: "Failed to save product" };
       }
 
-      // TODO: Implement actual API calls
-      // For now, returning simulated data
-      return this.simulateStoreResponse(url, true);
+      const results = await this.simulateStoreResponse(url, true);
+      
+      if (results.success && results.data.data) {
+        // Save price records
+        const priceRecords = results.data.data.map(item => ({
+          product_id: product.id,
+          store_name: item.store,
+          price: parseFloat(item.price.replace('₹', '')),
+          url: item.url || null
+        }));
+
+        const { error: priceError } = await supabase
+          .from('price_records')
+          .insert(priceRecords);
+
+        if (priceError) {
+          console.error("Error saving price records:", priceError);
+          return { success: false, error: "Failed to save price comparisons" };
+        }
+      }
+
+      return results;
     } catch (error) {
       console.error("Error during URL search:", error);
       return {
@@ -61,20 +93,49 @@ export class FirecrawlService {
     }
   }
 
-  static async searchByProduct(productName: string): Promise<any> {
+  static async searchByProduct(productName: string): Promise<CrawlResponse> {
     try {
-      // Check if we have API keys for any stores
-      const availableStores = Object.keys(this.API_KEYS).filter(store => 
-        this.getApiKey(store as keyof typeof FirecrawlService.API_KEYS)
-      );
-
-      if (availableStores.length === 0) {
-        return { success: false, error: "No store API keys configured" };
+      const session = await supabase.auth.getSession();
+      if (!session.data.session) {
+        return { success: false, error: "Please sign in to compare prices" };
       }
 
-      // TODO: Implement parallel API calls to all stores
-      // For now, returning simulated data
-      return this.simulateStoreResponse(productName, false);
+      // Create product entry
+      const { data: product, error: productError } = await supabase
+        .from('products')
+        .insert([
+          { name: productName }
+        ])
+        .select()
+        .single();
+
+      if (productError) {
+        console.error("Error creating product:", productError);
+        return { success: false, error: "Failed to save product" };
+      }
+
+      const results = await this.simulateStoreResponse(productName, false);
+      
+      if (results.success && results.data.data) {
+        // Save price records
+        const priceRecords = results.data.data.map(item => ({
+          product_id: product.id,
+          store_name: item.store,
+          price: parseFloat(item.price.replace('₹', '')),
+          url: item.url || null
+        }));
+
+        const { error: priceError } = await supabase
+          .from('price_records')
+          .insert(priceRecords);
+
+        if (priceError) {
+          console.error("Error saving price records:", priceError);
+          return { success: false, error: "Failed to save price comparisons" };
+        }
+      }
+
+      return results;
     } catch (error) {
       console.error("Error during product search:", error);
       return {
@@ -102,9 +163,9 @@ export class FirecrawlService {
     }
   }
 
-  private static simulateStoreResponse(searchTerm: string, isUrl: boolean): { success: boolean; data: any } {
+  private static simulateStoreResponse(searchTerm: string, isUrl: boolean): Promise<CrawlResponse> {
     // Simulation response for testing
-    return {
+    return Promise.resolve({
       success: true,
       data: {
         status: "completed",
@@ -139,6 +200,6 @@ export class FirecrawlService {
           }
         ]
       }
-    };
+    });
   }
 }
