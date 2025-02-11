@@ -11,31 +11,52 @@ export type Database = {
     Tables: {
       price_records: {
         Row: {
+          availability_count: number | null
+          available: boolean | null
           created_at: string
           currency: string | null
+          discount_percentage: number | null
           id: string
+          last_updated: string | null
+          offers: Json | null
           price: number
           product_id: string | null
+          regular_price: number | null
           store_name: string
           url: string | null
+          vendor_rating: number | null
         }
         Insert: {
+          availability_count?: number | null
+          available?: boolean | null
           created_at?: string
           currency?: string | null
+          discount_percentage?: number | null
           id?: string
+          last_updated?: string | null
+          offers?: Json | null
           price: number
           product_id?: string | null
+          regular_price?: number | null
           store_name: string
           url?: string | null
+          vendor_rating?: number | null
         }
         Update: {
+          availability_count?: number | null
+          available?: boolean | null
           created_at?: string
           currency?: string | null
+          discount_percentage?: number | null
           id?: string
+          last_updated?: string | null
+          offers?: Json | null
           price?: number
           product_id?: string | null
+          regular_price?: number | null
           store_name?: string
           url?: string | null
+          vendor_rating?: number | null
         }
         Relationships: [
           {
@@ -49,23 +70,38 @@ export type Database = {
       }
       products: {
         Row: {
+          brand: string | null
+          category: string | null
           created_at: string
           id: string
+          image_url: string | null
+          model: string | null
           name: string
+          specifications: Json | null
           url: string | null
           user_id: string | null
         }
         Insert: {
+          brand?: string | null
+          category?: string | null
           created_at?: string
           id?: string
+          image_url?: string | null
+          model?: string | null
           name: string
+          specifications?: Json | null
           url?: string | null
           user_id?: string | null
         }
         Update: {
+          brand?: string | null
+          category?: string | null
           created_at?: string
           id?: string
+          image_url?: string | null
+          model?: string | null
           name?: string
+          specifications?: Json | null
           url?: string | null
           user_id?: string | null
         }

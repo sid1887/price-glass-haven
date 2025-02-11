@@ -10,6 +10,12 @@ interface StorePrice {
   store: string;
   price: string;
   url?: string;
+  regular_price?: number;
+  discount_percentage?: number;
+  vendor_rating?: number;
+  available?: boolean;
+  availability_count?: number;
+  offers?: any[];
 }
 
 interface CrawlStatusResponse {
@@ -48,11 +54,10 @@ export class FirecrawlService {
         return { success: false, error: "Please sign in to compare prices" };
       }
 
-      // First, create a product entry
       const { data: product, error: productError } = await supabase
         .from('products')
         .insert([
-          { name: url, url: url }
+          { name: url, url: url, user_id: session.data.session.user.id }
         ])
         .select()
         .single();
@@ -65,12 +70,17 @@ export class FirecrawlService {
       const results = await this.simulateStoreResponse(url, true);
       
       if (results.success) {
-        // Save price records
         const priceRecords = results.data.map(item => ({
           product_id: product.id,
           store_name: item.store,
           price: parseFloat(item.price.replace('₹', '')),
-          url: item.url || null
+          url: item.url || null,
+          regular_price: item.regular_price,
+          discount_percentage: item.discount_percentage,
+          vendor_rating: item.vendor_rating,
+          available: item.available,
+          availability_count: item.availability_count,
+          offers: item.offers || []
         }));
 
         const { error: priceError } = await supabase
@@ -100,11 +110,10 @@ export class FirecrawlService {
         return { success: false, error: "Please sign in to compare prices" };
       }
 
-      // Create product entry
       const { data: product, error: productError } = await supabase
         .from('products')
         .insert([
-          { name: productName }
+          { name: productName, user_id: session.data.session.user.id }
         ])
         .select()
         .single();
@@ -117,12 +126,17 @@ export class FirecrawlService {
       const results = await this.simulateStoreResponse(productName, false);
       
       if (results.success) {
-        // Save price records
         const priceRecords = results.data.map(item => ({
           product_id: product.id,
           store_name: item.store,
           price: parseFloat(item.price.replace('₹', '')),
-          url: item.url || null
+          url: item.url || null,
+          regular_price: item.regular_price,
+          discount_percentage: item.discount_percentage,
+          vendor_rating: item.vendor_rating,
+          available: item.available,
+          availability_count: item.availability_count,
+          offers: item.offers || []
         }));
 
         const { error: priceError } = await supabase
@@ -163,8 +177,7 @@ export class FirecrawlService {
     }
   }
 
-  private static simulateStoreResponse(searchTerm: string, isUrl: boolean): Promise<CrawlResponse> {
-    // Simulation response for testing
+  private static simulateStoreResponse(searchTerm: string, isUrl: boolean): Promise<CrawlStatusResponse> {
     return Promise.resolve({
       success: true,
       status: "completed",
@@ -176,26 +189,56 @@ export class FirecrawlService {
         { 
           store: "D-Mart",
           price: "₹899",
-          url: isUrl ? searchTerm : "https://www.dmart.in"
+          url: isUrl ? searchTerm : "https://www.dmart.in",
+          regular_price: 999,
+          discount_percentage: 10,
+          vendor_rating: 4.5,
+          available: true,
+          availability_count: 50,
+          offers: [{ type: "cashback", value: "5%" }]
         },
         { 
           store: "Reliance Mart",
           price: "₹949",
-          url: "https://www.reliancemart.in"
+          url: "https://www.reliancemart.in",
+          regular_price: 999,
+          discount_percentage: 5,
+          vendor_rating: 4.2,
+          available: true,
+          availability_count: 25,
+          offers: [{ type: "instant_discount", value: "₹50" }]
         },
         { 
           store: "Amazon",
           price: "₹999",
-          url: "https://www.amazon.in"
+          url: "https://www.amazon.in",
+          regular_price: 1099,
+          discount_percentage: 9.1,
+          vendor_rating: 4.8,
+          available: true,
+          availability_count: 100,
+          offers: [{ type: "bank_offer", value: "10% off with HDFC cards" }]
         },
         { 
           store: "Flipkart",
           price: "₹929",
-          url: "https://www.flipkart.com"
+          url: "https://www.flipkart.com",
+          regular_price: 1049,
+          discount_percentage: 11.4,
+          vendor_rating: 4.6,
+          available: true,
+          availability_count: 75,
+          offers: [{ type: "combo_offer", value: "Buy 2 get 10% off" }]
         },
         { 
           store: "Local Store",
           price: "₹999",
+          regular_price: 999,
+          discount_percentage: 0,
+          vendor_rating: 4.0,
+          available: true,
+          availability_count: 10,
+          offers: []
         }
       ]
     });
