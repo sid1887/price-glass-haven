@@ -24,6 +24,7 @@ interface CrawlResult {
   creditsUsed?: number;
   expiresAt?: string;
   data?: StorePrice[];
+  error?: string;
 }
 
 export const CrawlForm = () => {
@@ -69,11 +70,11 @@ export const CrawlForm = () => {
           title: "Success",
           description: "Price data fetched successfully",
         });
-        setCrawlResult(result.data);
+        setCrawlResult(result);
       } else {
         toast({
           title: "Error",
-          description: result.error || "Failed to fetch price data",
+          description: "Failed to fetch price data",
           variant: "destructive",
         });
       }
@@ -175,7 +176,7 @@ export const CrawlForm = () => {
         </form>
       </Tabs>
 
-      {crawlResult && crawlResult.data && (
+      {crawlResult && crawlResult.success && crawlResult.data && (
         <Card className="p-6 animate-fade-in">
           <h3 className="text-xl font-semibold mb-4">Price Comparison Results</h3>
           <div className="space-y-4">
