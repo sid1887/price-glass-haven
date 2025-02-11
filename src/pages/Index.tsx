@@ -2,47 +2,57 @@
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { CrawlForm } from "@/components/CrawlForm";
 import { Button } from "@/components/ui/button";
-import { BarChart3, Globe, Search, Zap, LogIn } from "lucide-react";
+import { BarChart3, Globe, Search, Zap, LogIn, Sparkles, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const Index = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen w-full bg-background text-foreground overflow-x-hidden">
-      <div className="container flex justify-between items-center py-4">
-        <ThemeToggle />
-        <Button variant="outline" onClick={() => navigate("/auth")}>
-          <LogIn className="mr-2 h-4 w-4" />
-          Sign In
-        </Button>
+    <div className="min-h-screen w-full bg-background text-foreground overflow-x-hidden bg-[radial-gradient(ellipse_at_top,hsl(var(--accent)/0.2),transparent_50%)]">
+      <div className="container flex justify-between items-center py-6">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-6 w-6 text-primary animate-float" />
+          <h1 className="text-2xl font-bold text-gradient">CumPair</h1>
+        </div>
+        <div className="flex items-center gap-4">
+          <ThemeToggle />
+          <Button 
+            variant="secondary" 
+            onClick={() => navigate("/auth")}
+            className="animate-hover group"
+          >
+            <LogIn className="mr-2 h-4 w-4 group-hover:rotate-12 transition-transform" />
+            Sign In
+          </Button>
+        </div>
       </div>
       
-      <main className="space-y-24">
+      <main className="space-y-32 py-12">
         {/* Hero Section */}
         <section className="container max-w-7xl mx-auto px-4 py-16 space-y-16">
-          <div className="space-y-4 text-center animate-fade-in">
-            <div className="inline-flex items-center justify-center px-4 py-1.5 mb-4 text-sm font-medium rounded-full bg-primary/10 text-primary">
-              Compare Prices Instantly
+          <div className="space-y-6 text-center max-w-3xl mx-auto">
+            <div className="inline-flex items-center justify-center px-4 py-1.5 mb-4 text-sm font-medium rounded-full bg-primary/10 text-primary animate-float">
+              Compare Prices Like Never Before
             </div>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight">
+            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-gradient">
               Find the Best Deals
             </h1>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Enter a product URL to compare prices across multiple stores and find the best deals available.
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              Enter a product URL to compare prices across multiple stores and find the best deals available instantly.
             </p>
           </div>
 
-          <div className="max-w-2xl mx-auto glass rounded-xl p-6 animate-fade-in">
+          <div className="max-w-2xl mx-auto glass rounded-2xl p-8 animate-hover">
             <CrawlForm />
           </div>
         </section>
 
         {/* Features Section */}
-        <section className="container max-w-7xl mx-auto px-4 py-16 space-y-12">
+        <section className="container max-w-7xl mx-auto px-4 py-16 space-y-16">
           <div className="text-center space-y-4">
-            <h2 className="text-3xl font-bold">Why Choose Us</h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
+            <h2 className="text-4xl font-bold text-gradient">Why Choose Us</h2>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
               Get the best deals with our powerful price comparison tools
             </p>
           </div>
@@ -50,90 +60,94 @@ const Index = () => {
           <div className="grid md:grid-cols-3 gap-8">
             {[
               {
-                icon: <Search className="w-6 h-6" />,
+                icon: <Search className="w-8 h-8" />,
                 title: "Smart Search",
                 description: "Find products across multiple stores instantly"
               },
               {
-                icon: <BarChart3 className="w-6 h-6" />,
+                icon: <BarChart3 className="w-8 h-8" />,
                 title: "Price History",
                 description: "Track price changes over time to make informed decisions"
               },
               {
-                icon: <Globe className="w-6 h-6" />,
+                icon: <Globe className="w-8 h-8" />,
                 title: "Global Coverage",
                 description: "Compare prices from stores worldwide"
               }
             ].map((feature, index) => (
               <div 
                 key={index}
-                className="glass p-6 rounded-xl space-y-4 hover:scale-105 transition-transform duration-300"
+                className="card-gradient p-8 rounded-2xl space-y-6 hover:scale-105 transition-transform duration-300"
               >
-                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                <div className="w-16 h-16 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
                   {feature.icon}
                 </div>
-                <h3 className="text-xl font-semibold">{feature.title}</h3>
-                <p className="text-muted-foreground">{feature.description}</p>
+                <h3 className="text-2xl font-bold">{feature.title}</h3>
+                <p className="text-muted-foreground text-lg">{feature.description}</p>
               </div>
             ))}
           </div>
         </section>
 
         {/* How It Works Section */}
-        <section className="container max-w-7xl mx-auto px-4 py-16 space-y-12 bg-muted/50">
-          <div className="text-center space-y-4">
-            <h2 className="text-3xl font-bold">How It Works</h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Finding the best deals has never been easier
-            </p>
-          </div>
+        <section className="relative">
+          <div className="absolute inset-0 bg-accent/5 -skew-y-3" />
+          <div className="container max-w-7xl mx-auto px-4 py-32 space-y-16 relative">
+            <div className="text-center space-y-4">
+              <h2 className="text-4xl font-bold text-gradient">How It Works</h2>
+              <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                Finding the best deals has never been easier
+              </p>
+            </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {[
-              {
-                step: "1",
-                title: "Enter URL",
-                description: "Paste the product URL you want to compare"
-              },
-              {
-                step: "2",
-                title: "Compare Prices",
-                description: "We search multiple stores for the best deals"
-              },
-              {
-                step: "3",
-                title: "Save Money",
-                description: "Choose the best price and save instantly"
-              }
-            ].map((step, index) => (
-              <div 
-                key={index}
-                className="text-center space-y-4"
-              >
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary mx-auto text-xl font-bold">
-                  {step.step}
+            <div className="grid md:grid-cols-3 gap-12">
+              {[
+                {
+                  step: "1",
+                  title: "Enter URL",
+                  description: "Paste the product URL you want to compare"
+                },
+                {
+                  step: "2",
+                  title: "Compare Prices",
+                  description: "We search multiple stores for the best deals"
+                },
+                {
+                  step: "3",
+                  title: "Save Money",
+                  description: "Choose the best price and save instantly"
+                }
+              ].map((step, index) => (
+                <div 
+                  key={index}
+                  className="text-center space-y-6 animate-hover"
+                >
+                  <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary mx-auto text-2xl font-bold">
+                    {step.step}
+                  </div>
+                  <h3 className="text-2xl font-bold">{step.title}</h3>
+                  <p className="text-muted-foreground text-lg">{step.description}</p>
                 </div>
-                <h3 className="text-xl font-semibold">{step.title}</h3>
-                <p className="text-muted-foreground">{step.description}</p>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </section>
 
         {/* CTA Section */}
         <section className="container max-w-7xl mx-auto px-4 py-16">
-          <div className="glass p-12 rounded-2xl text-center space-y-6">
-            <h2 className="text-3xl font-bold">Start Saving Today</h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
+          <div className="glass p-16 rounded-3xl text-center space-y-8">
+            <h2 className="text-4xl font-bold text-gradient">Start Saving Today</h2>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
               Join thousands of smart shoppers who save money every day using our price comparison tool.
             </p>
             <Button 
               size="lg"
-              className="animate-fade-in"
+              className="animate-hover group"
               onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
             >
-              <Zap className="mr-2 h-4 w-4" />
+              <Zap className="mr-2 h-5 w-5 group-hover:rotate-12 transition-transform" />
               Compare Prices Now
+              <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
             </Button>
           </div>
         </section>
