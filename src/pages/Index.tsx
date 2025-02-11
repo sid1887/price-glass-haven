@@ -41,7 +41,7 @@ const Index = () => {
             </p>
           </div>
 
-          <div className="max-w-2xl mx-auto glass rounded-2xl p-8 animate-hover">
+          <div className="max-w-2xl mx-auto glass rounded-2xl p-8 transition-all duration-300 hover:shadow-xl hover:shadow-primary/20">
             <CrawlForm />
           </div>
         </section>
