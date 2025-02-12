@@ -1,4 +1,3 @@
-
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,19 +39,37 @@ export default function Auth() {
     // Handle email confirmation
     const handleEmailConfirmation = async () => {
       const params = new URLSearchParams(window.location.search);
-      if (params.get('error_description')) {
-        console.error('Error in email confirmation:', params.get('error_description'));
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: params.get('error_description') || "Error confirming email",
-        });
-      } else if (params.get('confirmation_type') === 'email_change') {
-        toast({
-          title: "Email Updated",
-          description: "Your email has been updated successfully.",
-        });
-        navigate('/');
+      const token = params.get('token');
+      const type = params.get('type');
+
+      if (type === 'signup' && token) {
+        try {
+          const { error } = await supabase.auth.verifyOtp({
+            token_hash: token,
+            type: 'signup'
+          });
+          
+          if (error) {
+            toast({
+              variant: "destructive",
+              title: "Error",
+              description: "Error confirming email. Please try again.",
+            });
+          } else {
+            toast({
+              title: "Success",
+              description: "Email confirmed successfully! You can now log in.",
+            });
+            navigate('/');
+          }
+        } catch (error) {
+          console.error('Error in email confirmation:', error);
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Error confirming email. Please try again.",
+          });
+        }
       }
     };
 
@@ -100,6 +117,9 @@ export default function Auth() {
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/auth`,
+          data: {
+            email: email,
+          }
         },
       });
       
