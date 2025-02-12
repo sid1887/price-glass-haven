@@ -28,14 +28,38 @@ export default function Auth() {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth event:", event);
+      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
         navigate("/");
+      } else if (event === 'SIGNED_OUT') {
+        navigate("/auth");
       }
     });
 
+    // Handle email confirmation
+    const handleEmailConfirmation = async () => {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('error_description')) {
+        console.error('Error in email confirmation:', params.get('error_description'));
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: params.get('error_description') || "Error confirming email",
+        });
+      } else if (params.get('confirmation_type') === 'email_change') {
+        toast({
+          title: "Email Updated",
+          description: "Your email has been updated successfully.",
+        });
+        navigate('/');
+      }
+    };
+
+    handleEmailConfirmation();
+
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, toast]);
 
   const handleAuthError = (error: AuthError) => {
     console.error("Auth error:", error);
@@ -75,7 +99,7 @@ export default function Auth() {
         email,
         password,
         options: {
-          emailRedirectTo: window.location.origin,
+          emailRedirectTo: `${window.location.origin}/auth`,
         },
       });
       
