@@ -19,16 +19,22 @@ interface StorePrice {
   offers?: any[];
 }
 
-interface CrawlResult {
-  success: boolean;
-  status?: string;
-  completed?: number;
-  total?: number;
-  creditsUsed?: number;
-  expiresAt?: string;
-  data?: StorePrice[];
-  error?: string;
+interface CrawlStatusResponse {
+  success: true;
+  status: string;
+  completed: number;
+  total: number;
+  creditsUsed: number;
+  expiresAt: string;
+  data: StorePrice[];
 }
+
+interface ErrorResponse {
+  success: false;
+  error: string;
+}
+
+type CrawlResult = CrawlStatusResponse | ErrorResponse;
 
 export const CrawlForm = () => {
   const { toast } = useToast();
@@ -53,11 +59,11 @@ export const CrawlForm = () => {
           description: "Website crawled successfully",
           duration: 3000,
         });
-        setCrawlResult(result.data);
+        setCrawlResult(result);
       } else {
         toast({
           title: "Error",
-          description: result.error || "Failed to crawl website",
+          description: (result as ErrorResponse).error || "Failed to crawl website",
           variant: "destructive",
           duration: 3000,
         });
@@ -99,7 +105,7 @@ export const CrawlForm = () => {
         </Button>
       </form>
 
-      {crawlResult && 'data' in crawlResult && crawlResult.data && (
+      {crawlResult && crawlResult.success && crawlResult.data && (
         <Card className="p-6">
           <h3 className="text-xl font-semibold mb-4">Price Comparison Results</h3>
           <div className="space-y-4">
