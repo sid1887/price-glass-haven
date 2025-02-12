@@ -1,3 +1,4 @@
+
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,17 +40,18 @@ export default function Auth() {
     // Handle email confirmation
     const handleEmailConfirmation = async () => {
       const params = new URLSearchParams(window.location.search);
-      const token = params.get('token');
+      const token = params.get('token_hash') || params.get('token'); // Check both formats
       const type = params.get('type');
 
-      if (type === 'signup' && token) {
+      if (token) {
         try {
           const { error } = await supabase.auth.verifyOtp({
             token_hash: token,
-            type: 'signup'
+            type: type as any || 'signup'
           });
           
           if (error) {
+            console.error('Verification error:', error);
             toast({
               variant: "destructive",
               title: "Error",
@@ -116,7 +118,7 @@ export default function Auth() {
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth`,
+          emailRedirectTo: `http://localhost:8080/auth`, // Explicitly set the port
           data: {
             email: email,
           }
