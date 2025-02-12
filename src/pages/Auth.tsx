@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
+import { AuthError } from "@supabase/supabase-js";
 
 export default function Auth() {
   const [email, setEmail] = useState("");
@@ -36,26 +37,56 @@ export default function Auth() {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
+  const handleAuthError = (error: AuthError) => {
+    console.error("Auth error:", error);
+    let description = "An error occurred during authentication.";
+    
+    if (error.message.includes("Email not confirmed")) {
+      description = "Please check your email and click the confirmation link to verify your account.";
+    } else if (error.message.includes("Invalid login credentials")) {
+      description = "Invalid email or password. Please check your credentials and try again.";
+    } else if (error.message.includes("Email already registered")) {
+      description = "This email is already registered. Please try signing in instead.";
+    } else if (error.message.includes("Password")) {
+      description = "Password should be at least 6 characters long.";
+    }
+
+    toast({
+      variant: "destructive",
+      title: "Authentication Error",
+      description: description,
+    });
+  };
+
   const handleEmailSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (password.length < 6) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Password",
+        description: "Password must be at least 6 characters long.",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       const { error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          emailRedirectTo: window.location.origin,
+        },
       });
+      
       if (error) throw error;
+      
       toast({
         title: "Success!",
-        description: "Check your email for the confirmation link.",
+        description: "Please check your email for the confirmation link to complete your registration.",
       });
     } catch (error: any) {
-      console.error("Sign up error:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
+      handleAuthError(error);
     } finally {
       setLoading(false);
     }
@@ -69,18 +100,15 @@ export default function Auth() {
         email,
         password,
       });
+      
       if (error) throw error;
+      
       toast({
         title: "Welcome back!",
         description: "Successfully signed in.",
       });
     } catch (error: any) {
-      console.error("Sign in error:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
+      handleAuthError(error);
     } finally {
       setLoading(false);
     }
@@ -148,10 +176,11 @@ export default function Auth() {
                   <Input
                     id="signup-password"
                     type="password"
-                    placeholder="Create a password"
+                    placeholder="Create a password (min. 6 characters)"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    minLength={6}
                   />
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
