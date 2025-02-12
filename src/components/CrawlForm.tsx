@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { FirecrawlService } from "@/utils/FirecrawlService";
 import { Card } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from "@/components/ui/label";
 
 interface StorePrice {
   store: string;
@@ -39,40 +41,42 @@ type CrawlResult = CrawlStatusResponse | ErrorResponse;
 export const CrawlForm = () => {
   const { toast } = useToast();
   const [url, setUrl] = useState("");
+  const [productName, setProductName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [crawlResult, setCrawlResult] = useState<CrawlResult | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent, searchType: 'url' | 'name') => {
     e.preventDefault();
     setIsLoading(true);
     setProgress(0);
     setCrawlResult(null);
 
     try {
-      console.log('Starting crawl for URL:', url);
-      const result = await FirecrawlService.crawlWebsite(url);
+      const searchTerm = searchType === 'url' ? url : productName;
+      console.log(`Starting ${searchType} search for:`, searchTerm);
+      const result = await FirecrawlService.crawlWebsite(searchTerm);
       
       if (result.success) {
         toast({
           title: "Success",
-          description: "Website crawled successfully",
+          description: "Search completed successfully",
           duration: 3000,
         });
         setCrawlResult(result);
       } else {
         toast({
           title: "Error",
-          description: (result as ErrorResponse).error || "Failed to crawl website",
+          description: (result as ErrorResponse).error || "Failed to search",
           variant: "destructive",
           duration: 3000,
         });
       }
     } catch (error) {
-      console.error('Error crawling website:', error);
+      console.error('Error during search:', error);
       toast({
         title: "Error",
-        description: "Failed to crawl website",
+        description: "Failed to complete search",
         variant: "destructive",
         duration: 3000,
       });
@@ -84,26 +88,66 @@ export const CrawlForm = () => {
 
   return (
     <div className="space-y-6">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <Input
-          type="url"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          className="w-full"
-          placeholder="Enter product URL to compare"
-          required
-        />
+      <Tabs defaultValue="url" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="url">Search by URL</TabsTrigger>
+          <TabsTrigger value="name">Search by Name</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="url">
+          <form onSubmit={(e) => handleSubmit(e, 'url')} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="url">Product URL</Label>
+              <Input
+                id="url"
+                type="url"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                className="w-full"
+                placeholder="Enter product URL to compare"
+                required
+              />
+            </div>
 
-        {isLoading && <Progress value={progress} className="w-full" />}
+            {isLoading && <Progress value={progress} className="w-full" />}
 
-        <Button
-          type="submit"
-          disabled={isLoading}
-          className="w-full group"
-        >
-          {isLoading ? "Searching..." : "Compare Prices"}
-        </Button>
-      </form>
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className="w-full group"
+            >
+              {isLoading ? "Searching..." : "Compare Prices"}
+            </Button>
+          </form>
+        </TabsContent>
+
+        <TabsContent value="name">
+          <form onSubmit={(e) => handleSubmit(e, 'name')} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="product-name">Product Name</Label>
+              <Input
+                id="product-name"
+                type="text"
+                value={productName}
+                onChange={(e) => setProductName(e.target.value)}
+                className="w-full"
+                placeholder="Enter product name to search"
+                required
+              />
+            </div>
+
+            {isLoading && <Progress value={progress} className="w-full" />}
+
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className="w-full group"
+            >
+              {isLoading ? "Searching..." : "Search Products"}
+            </Button>
+          </form>
+        </TabsContent>
+      </Tabs>
 
       {crawlResult && crawlResult.success && crawlResult.data && (
         <Card className="p-6">
