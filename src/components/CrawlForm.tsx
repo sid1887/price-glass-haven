@@ -8,6 +8,8 @@ import { FirecrawlService } from "@/utils/FirecrawlService";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
+import { BarcodeScanner } from "./BarcodeScanner";
+import { Camera } from "lucide-react";
 
 interface StorePrice {
   store: string;
@@ -45,8 +47,9 @@ export const CrawlForm = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [crawlResult, setCrawlResult] = useState<CrawlResult | null>(null);
+  const [showScanner, setShowScanner] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent, searchType: 'url' | 'name') => {
+  const handleSubmit = async (e: React.FormEvent, searchType: 'url' | 'name' | 'barcode') => {
     e.preventDefault();
     setIsLoading(true);
     setProgress(0);
@@ -86,12 +89,32 @@ export const CrawlForm = () => {
     }
   };
 
+  const handleBarcodeDetected = async (barcode: string) => {
+    setShowScanner(false);
+    setProductName(barcode);
+    toast({
+      title: "Barcode Detected",
+      description: `Searching for product with barcode: ${barcode}`,
+    });
+    
+    const e = { preventDefault: () => {} } as React.FormEvent;
+    handleSubmit(e, 'name');
+  };
+
   return (
     <div className="space-y-6">
+      {showScanner && (
+        <BarcodeScanner
+          onDetected={handleBarcodeDetected}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
+
       <Tabs defaultValue="url" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="url">Search by URL</TabsTrigger>
           <TabsTrigger value="name">Search by Name</TabsTrigger>
+          <TabsTrigger value="barcode">Scan Barcode</TabsTrigger>
         </TabsList>
         
         <TabsContent value="url">
@@ -146,6 +169,22 @@ export const CrawlForm = () => {
               {isLoading ? "Searching..." : "Search Products"}
             </Button>
           </form>
+        </TabsContent>
+
+        <TabsContent value="barcode">
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Click the button below to open your camera and scan a product barcode
+            </p>
+            <Button
+              onClick={() => setShowScanner(true)}
+              className="w-full"
+              type="button"
+            >
+              <Camera className="mr-2 h-4 w-4" />
+              Start Barcode Scanner
+            </Button>
+          </div>
         </TabsContent>
       </Tabs>
 

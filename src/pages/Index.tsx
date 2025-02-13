@@ -1,76 +1,15 @@
 
 import { CrawlForm } from "@/components/CrawlForm";
 import { Button } from "@/components/ui/button";
-import { BarChart3, Globe, Search, Zap, LogIn, LogOut, Sparkles, ArrowRight } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { useEffect, useState } from "react";
-import { useToast } from "@/hooks/use-toast";
+import { BarChart3, Globe, Search, Zap, Sparkles, ArrowRight } from "lucide-react";
 
 const Index = () => {
-  const navigate = useNavigate();
-  const [user, setUser] = useState(null);
-  const { toast } = useToast();
-
-  useEffect(() => {
-    // Check current auth status
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user || null);
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user || null);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut();
-      toast({
-        title: "Logged out",
-        description: "You have been successfully logged out.",
-      });
-      navigate("/auth");
-    } catch (error) {
-      console.error("Error logging out:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to log out. Please try again.",
-      });
-    }
-  };
-
   return (
     <div className="min-h-screen w-full bg-background text-foreground overflow-x-hidden bg-[radial-gradient(ellipse_at_top,hsl(var(--accent)/0.2),transparent_50%)]">
       <div className="container flex justify-between items-center py-6">
         <div className="flex items-center gap-2">
           <Sparkles className="h-6 w-6 text-primary animate-float" />
           <h1 className="text-2xl font-bold text-gradient">CumPair</h1>
-        </div>
-        <div className="flex items-center gap-4">
-          {user ? (
-            <Button 
-              variant="secondary" 
-              onClick={handleLogout}
-              className="animate-hover group"
-            >
-              <LogOut className="mr-2 h-4 w-4 group-hover:rotate-12 transition-transform" />
-              Sign Out
-            </Button>
-          ) : (
-            <Button 
-              variant="secondary" 
-              onClick={() => navigate("/auth")}
-              className="animate-hover group"
-            >
-              <LogIn className="mr-2 h-4 w-4 group-hover:rotate-12 transition-transform" />
-              Sign In
-            </Button>
-          )}
         </div>
       </div>
       
@@ -85,7 +24,7 @@ const Index = () => {
               Find the Best Deals
             </h1>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Enter a product URL or name to compare prices across multiple stores and find the best deals available instantly.
+              Enter a product URL, name, or scan its barcode to compare prices across multiple stores and find the best deals available instantly.
             </p>
           </div>
 
@@ -150,8 +89,8 @@ const Index = () => {
               {[
                 {
                   step: "1",
-                  title: "Enter URL",
-                  description: "Paste the product URL you want to compare"
+                  title: "Enter Details",
+                  description: "Enter URL, name, or scan barcode"
                 },
                 {
                   step: "2",
