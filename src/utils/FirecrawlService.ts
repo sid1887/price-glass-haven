@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 interface ErrorResponse {
@@ -27,6 +28,20 @@ interface CrawlStatusResponse {
   data: StorePrice[];
 }
 
+interface ProductInfo {
+  name?: string;
+  price?: string;
+  brand?: string;
+  category?: string;
+  url?: string;
+  regular_price?: number;
+  discount_percentage?: number;
+  vendor_rating?: number;
+  available?: boolean;
+  availability_count?: number;
+  offers?: any[];
+}
+
 type CrawlResponse = CrawlStatusResponse | ErrorResponse;
 
 export class FirecrawlService {
@@ -52,7 +67,7 @@ export class FirecrawlService {
 
       if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
         try {
-          const productInfo = JSON.parse(data.candidates[0].content.parts[0].text);
+          const productInfo = JSON.parse(data.candidates[0].content.parts[0].text) as ProductInfo;
           return {
             success: true,
             product: productInfo
@@ -131,11 +146,11 @@ export class FirecrawlService {
       });
 
       const analysisData = await geminiResponse.json();
-      let productInfo = {};
+      let productInfo: ProductInfo = {};
       
       if (analysisData.candidates?.[0]?.content?.parts?.[0]?.text) {
         try {
-          productInfo = JSON.parse(analysisData.candidates[0].content.parts[0].text);
+          productInfo = JSON.parse(analysisData.candidates[0].content.parts[0].text) as ProductInfo;
         } catch (e) {
           console.error('Error parsing Gemini analysis:', e);
         }
@@ -191,11 +206,11 @@ export class FirecrawlService {
           });
 
           const analysisData = await geminiResponse.json();
-          let productData = {};
+          let productData: ProductInfo = {};
           
           if (analysisData.candidates?.[0]?.content?.parts?.[0]?.text) {
             try {
-              productData = JSON.parse(analysisData.candidates[0].content.parts[0].text);
+              productData = JSON.parse(analysisData.candidates[0].content.parts[0].text) as ProductInfo;
             } catch (e) {
               console.error(`Error parsing ${store.name} results:`, e);
             }
