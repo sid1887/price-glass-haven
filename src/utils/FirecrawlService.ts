@@ -30,63 +30,122 @@ interface CrawlStatusResponse {
 type CrawlResponse = CrawlStatusResponse | ErrorResponse;
 
 export class FirecrawlService {
-  private static API_KEYS = {
-    AMAZON: 'amazon_api_key',
-    FLIPKART: 'flipkart_api_key',
-    DMART: 'dmart_api_key',
-    RELIANCE: 'reliance_api_key'
-  };
+  static async lookupProductWithGemini(query: string): Promise<any> {
+    try {
+      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': process.env.GEMINI_API_KEY || '',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: `Find product details for: ${query}. Return a JSON with name, category, and likely price range in INR.`
+            }]
+          }]
+        })
+      });
 
-  static saveApiKey(store: keyof typeof FirecrawlService.API_KEYS, apiKey: string): void {
-    localStorage.setItem(store, apiKey);
-    console.log(`API key saved for ${store}`);
-  }
+      const data = await response.json();
+      console.log('Gemini response:', data);
 
-  static getApiKey(store: keyof typeof FirecrawlService.API_KEYS): string | null {
-    return localStorage.getItem(store);
+      if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+        try {
+          const productInfo = JSON.parse(data.candidates[0].content.parts[0].text);
+          return {
+            success: true,
+            product: productInfo
+          };
+        } catch (e) {
+          console.error('Error parsing Gemini response:', e);
+          return {
+            success: false,
+            error: 'Failed to parse product information'
+          };
+        }
+      }
+
+      return {
+        success: false,
+        error: 'No product information found'
+      };
+    } catch (error) {
+      console.error('Error calling Gemini API:', error);
+      return {
+        success: false,
+        error: 'Failed to process product query'
+      };
+    }
   }
 
   private static async lookupBarcode(barcode: string): Promise<any> {
     try {
-      // Example using UPCItemDB API
-      const response = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${barcode}`);
-      const data = await response.json();
+      // First try UPC Database
+      const response = await fetch(`https://api.upcdatabase.org/product/${barcode}`);
       
-      if (data.code === 'OK' && data.items?.length > 0) {
+      if (response.ok) {
+        const data = await response.json();
         return {
           success: true,
-          product: data.items[0]
+          product: data
         };
       }
       
-      return {
-        success: false,
-        error: 'Product not found'
-      };
+      // If UPC Database fails, use Gemini to analyze the barcode
+      return this.lookupProductWithGemini(barcode);
     } catch (error) {
       console.error('Barcode lookup error:', error);
-      return {
-        success: false,
-        error: 'Failed to lookup barcode'
-      };
+      // Fallback to Gemini
+      return this.lookupProductWithGemini(barcode);
     }
   }
 
   private static async scrapeProductDetails(url: string): Promise<any> {
     try {
-      // Here we would integrate with a web scraping service or API
-      // For now, we'll make a simple fetch to get page metadata
       const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('Failed to fetch URL');
+      }
+      
       const html = await response.text();
       
-      // Basic metadata extraction (would be more sophisticated in production)
+      // Extract basic metadata
       const titleMatch = html.match(/<title>(.*?)<\/title>/);
       const title = titleMatch ? titleMatch[1] : '';
       
+      // Use Gemini to analyze the page content
+      const geminiResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': process.env.GEMINI_API_KEY || '',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: `Analyze this product page HTML and extract product details. HTML: ${html.substring(0, 1000)}... Return a JSON with name, price, brand, and category.`
+            }]
+          }]
+        })
+      });
+
+      const analysisData = await geminiResponse.json();
+      let productInfo = {};
+      
+      if (analysisData.candidates?.[0]?.content?.parts?.[0]?.text) {
+        try {
+          productInfo = JSON.parse(analysisData.candidates[0].content.parts[0].text);
+        } catch (e) {
+          console.error('Error parsing Gemini analysis:', e);
+        }
+      }
+
       return {
         success: true,
         product: {
-          name: title,
+          name: productInfo.name || title,
+          ...productInfo,
           url: url
         }
       };
@@ -95,6 +154,98 @@ export class FirecrawlService {
       return {
         success: false,
         error: 'Failed to extract product details'
+      };
+    }
+  }
+
+  private static async searchPricesAcrossStores(productName: string): Promise<CrawlResponse> {
+    try {
+      const stores = [
+        { name: 'Amazon', baseUrl: 'https://www.amazon.in' },
+        { name: 'Flipkart', baseUrl: 'https://www.flipkart.com' },
+        { name: 'Meesho', baseUrl: 'https://www.meesho.com' }
+      ];
+
+      const searchPromises = stores.map(async (store) => {
+        try {
+          const encodedName = encodeURIComponent(productName);
+          const searchUrl = `${store.baseUrl}/search?q=${encodedName}`;
+          
+          const response = await fetch(searchUrl);
+          const html = await response.text();
+
+          // Use Gemini to analyze the search results
+          const geminiResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': process.env.GEMINI_API_KEY || '',
+            },
+            body: JSON.stringify({
+              contents: [{
+                parts: [{
+                  text: `Analyze this e-commerce search result page and find the best matching product for "${productName}". Extract price, URL, and any available offers. HTML: ${html.substring(0, 1000)}...`
+                }]
+              }]
+            })
+          });
+
+          const analysisData = await geminiResponse.json();
+          let productData = {};
+          
+          if (analysisData.candidates?.[0]?.content?.parts?.[0]?.text) {
+            try {
+              productData = JSON.parse(analysisData.candidates[0].content.parts[0].text);
+            } catch (e) {
+              console.error(`Error parsing ${store.name} results:`, e);
+            }
+          }
+
+          return {
+            store: store.name,
+            price: productData.price || 'N/A',
+            url: productData.url || searchUrl,
+            regular_price: productData.regular_price,
+            discount_percentage: productData.discount_percentage,
+            vendor_rating: productData.vendor_rating,
+            available: productData.available !== false,
+            availability_count: productData.availability_count,
+            offers: productData.offers || []
+          };
+        } catch (error) {
+          console.error(`Error searching ${store.name}:`, error);
+          return {
+            store: store.name,
+            price: 'Error',
+            url: store.baseUrl
+          };
+        }
+      });
+
+      const results = await Promise.all(searchPromises);
+      const validResults = results.filter(result => result.price !== 'Error');
+
+      if (validResults.length === 0) {
+        return {
+          success: false,
+          error: "No valid prices found"
+        };
+      }
+
+      return {
+        success: true,
+        status: "completed",
+        completed: validResults.length,
+        total: stores.length,
+        creditsUsed: validResults.length,
+        expiresAt: new Date(Date.now() + 86400000).toISOString(),
+        data: validResults
+      };
+    } catch (error) {
+      console.error("Error searching prices:", error);
+      return {
+        success: false,
+        error: "Failed to fetch prices from stores"
       };
     }
   }
@@ -232,50 +383,6 @@ export class FirecrawlService {
       return {
         success: false,
         error: error instanceof Error ? error.message : "Failed to search by product name"
-      };
-    }
-  }
-
-  private static async searchPricesAcrossStores(productName: string): Promise<CrawlResponse> {
-    try {
-      // Here we would integrate with various store APIs or web scraping services
-      // For demonstration, we'll return simulated data
-      // In production, this would make real API calls to various stores
-      
-      // Example store API call structure:
-      // const amazonPrice = await this.fetchAmazonPrice(productName);
-      // const flipkartPrice = await this.fetchFlipkartPrice(productName);
-      // etc.
-
-      const prices: StorePrice[] = [
-        {
-          store: "Amazon",
-          price: "₹999",
-          url: `https://www.amazon.in/s?k=${encodeURIComponent(productName)}`,
-          regular_price: 1099,
-          discount_percentage: 9.1,
-          vendor_rating: 4.8,
-          available: true,
-          availability_count: 100,
-          offers: [{ type: "bank_offer", value: "10% off with HDFC cards" }]
-        },
-        // ... add more stores
-      ];
-
-      return {
-        success: true,
-        status: "completed",
-        completed: prices.length,
-        total: prices.length,
-        creditsUsed: 1,
-        expiresAt: new Date(Date.now() + 86400000).toISOString(),
-        data: prices
-      };
-    } catch (error) {
-      console.error("Error searching prices:", error);
-      return {
-        success: false,
-        error: "Failed to fetch prices from stores"
       };
     }
   }
