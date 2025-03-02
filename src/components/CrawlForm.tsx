@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { BarcodeScanner } from "./BarcodeScanner";
-import { Camera, ExternalLink, Star, ShoppingCart, Sparkles, RefreshCw } from "lucide-react";
+import { Camera, ExternalLink, Star, ShoppingCart, Sparkles, RefreshCw, ThumbsUp, BadgePercent } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface StorePrice {
@@ -63,7 +63,6 @@ export const CrawlForm = () => {
       const searchTerm = searchType === 'url' ? url : productName;
       console.log(`Starting ${searchType} search for:`, searchTerm);
       
-      // Show progress animation with AI status updates
       const statusMessages = [
         "Analyzing search term with Gemini AI...",
         "Searching across multiple stores...",
@@ -76,7 +75,6 @@ export const CrawlForm = () => {
       const progressInterval = setInterval(() => {
         setProgress(prev => {
           const newProgress = Math.min(prev + 10, 90);
-          // Update AI status message periodically
           if (newProgress % 20 === 0 && messageIndex < statusMessages.length) {
             setAiStatus(statusMessages[messageIndex]);
             messageIndex++;
@@ -100,7 +98,6 @@ export const CrawlForm = () => {
         });
         setCrawlResult(result);
         
-        // Find the best deal (lowest price)
         if (result.data && result.data.length > 0) {
           const sortedData = [...result.data].sort((a, b) => {
             const priceA = parseFloat(a.price.replace(/[^0-9.]/g, '')) || Infinity;
