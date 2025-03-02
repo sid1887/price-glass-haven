@@ -92,7 +92,11 @@ export class FirecrawlService {
     
     try {
       const { data, error } = await supabase.functions.invoke('scrape-prices', {
-        body: { query, type: 'name' }
+        body: { 
+          query, 
+          type: 'name',
+          action: 'smart_extract' // Enhanced prompt for better extraction
+        }
       });
 
       if (error) throw error;
@@ -115,7 +119,7 @@ export class FirecrawlService {
     }
   }
 
-  private static async lookupBarcode(barcode: string): Promise<any> {
+  static async lookupBarcode(barcode: string): Promise<any> {
     // Check cache first
     const cacheKey = `barcode_${barcode}`;
     const cachedData = CacheManager.get(cacheKey);
@@ -126,9 +130,13 @@ export class FirecrawlService {
     }
     
     try {
-      // Call our Edge Function with barcode
+      // Call our Edge Function with barcode and enhanced AI extraction
       const { data, error } = await supabase.functions.invoke('scrape-prices', {
-        body: { query: barcode, type: 'barcode' }
+        body: { 
+          query: barcode, 
+          type: 'barcode',
+          action: 'improve_barcode' // AI-assisted barcode recognition
+        }
       });
 
       if (error) throw error;
@@ -153,12 +161,21 @@ export class FirecrawlService {
 
   static async askGeminiAI(message: string): Promise<ChatResponse> {
     try {
+      console.log("Sending chat request to Gemini AI:", message);
       const { data, error } = await supabase.functions.invoke('scrape-prices', {
-        body: { query: message, type: 'chat' }
+        body: { 
+          query: message, 
+          type: 'chat',
+          context: 'price_comparison_assistant' // Enhanced context for better responses
+        }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error in Gemini chat response:", error);
+        throw error;
+      }
 
+      console.log("Received Gemini AI response:", data);
       return {
         success: true,
         message: data.message || "I couldn't find a specific answer to your question."
@@ -168,6 +185,56 @@ export class FirecrawlService {
       return {
         success: false,
         message: "Sorry, I encountered an error processing your request."
+      };
+    }
+  }
+
+  static async summarizeProductDescription(description: string): Promise<any> {
+    try {
+      const { data, error } = await supabase.functions.invoke('scrape-prices', {
+        body: { 
+          query: description, 
+          type: 'summarize',
+          action: 'product_description'
+        }
+      });
+
+      if (error) throw error;
+      
+      return {
+        success: true,
+        summary: data.summary
+      };
+    } catch (error) {
+      console.error("Error summarizing product description:", error);
+      return {
+        success: false,
+        error: "Failed to summarize product description"
+      };
+    }
+  }
+
+  static async analyzeReviews(reviews: string[]): Promise<any> {
+    try {
+      const { data, error } = await supabase.functions.invoke('scrape-prices', {
+        body: { 
+          reviews, 
+          type: 'analyze',
+          action: 'sentiment_analysis'
+        }
+      });
+
+      if (error) throw error;
+      
+      return {
+        success: true,
+        analysis: data.analysis
+      };
+    } catch (error) {
+      console.error("Error analyzing reviews:", error);
+      return {
+        success: false,
+        error: "Failed to analyze reviews"
       };
     }
   }
@@ -183,10 +250,13 @@ export class FirecrawlService {
     }
     
     try {
+      const inputType = searchTerm.startsWith('http') ? 'url' : /^\d+$/.test(searchTerm) ? 'barcode' : 'name';
+      
       const { data, error } = await supabase.functions.invoke('scrape-prices', {
         body: {
           query: searchTerm,
-          type: searchTerm.startsWith('http') ? 'url' : /^\d+$/.test(searchTerm) ? 'barcode' : 'name'
+          type: inputType,
+          action: 'enhanced_extraction' // AI-enhanced extraction
         }
       });
 
