@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
@@ -9,7 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { BarcodeScanner } from "./BarcodeScanner";
-import { Camera, ExternalLink, BadgePercent, Star, ShoppingCart, ThumbsUp, RefreshCw } from "lucide-react";
+import { Camera, ExternalLink, Star, ShoppingCart, Sparkles, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface StorePrice {
@@ -50,6 +49,7 @@ export const CrawlForm = () => {
   const [crawlResult, setCrawlResult] = useState<CrawlResult | null>(null);
   const [showScanner, setShowScanner] = useState(false);
   const [bestDeal, setBestDeal] = useState<StorePrice | null>(null);
+  const [aiStatus, setAiStatus] = useState<string>("");
 
   const handleSubmit = async (e: React.FormEvent, searchType: 'url' | 'name' | 'barcode') => {
     e.preventDefault();
@@ -57,16 +57,32 @@ export const CrawlForm = () => {
     setProgress(0);
     setCrawlResult(null);
     setBestDeal(null);
+    setAiStatus("Starting AI-powered search...");
 
     try {
       const searchTerm = searchType === 'url' ? url : productName;
       console.log(`Starting ${searchType} search for:`, searchTerm);
       
-      // Show progress animation
+      // Show progress animation with AI status updates
+      const statusMessages = [
+        "Analyzing search term with Gemini AI...",
+        "Searching across multiple stores...",
+        "Comparing prices and discounts...",
+        "Analyzing vendor ratings...",
+        "Finding the best deals for you..."
+      ];
+      
+      let messageIndex = 0;
       const progressInterval = setInterval(() => {
         setProgress(prev => {
-          if (prev >= 90) clearInterval(progressInterval);
-          return Math.min(prev + 10, 90);
+          const newProgress = Math.min(prev + 10, 90);
+          // Update AI status message periodically
+          if (newProgress % 20 === 0 && messageIndex < statusMessages.length) {
+            setAiStatus(statusMessages[messageIndex]);
+            messageIndex++;
+          }
+          if (newProgress >= 90) clearInterval(progressInterval);
+          return newProgress;
         });
       }, 300);
       
@@ -74,11 +90,12 @@ export const CrawlForm = () => {
       
       clearInterval(progressInterval);
       setProgress(100);
+      setAiStatus("AI analysis complete!");
       
       if (result.success) {
         toast({
-          title: "Success",
-          description: "Search completed successfully",
+          title: "AI Search Complete",
+          description: "Found the best deals for you",
           duration: 3000,
         });
         setCrawlResult(result);
@@ -95,7 +112,7 @@ export const CrawlForm = () => {
         }
       } else {
         toast({
-          title: "Error",
+          title: "AI Search Error",
           description: (result as ErrorResponse).error || "Failed to search",
           variant: "destructive",
           duration: 3000,
@@ -158,14 +175,26 @@ export const CrawlForm = () => {
               />
             </div>
 
-            {isLoading && <Progress value={progress} className="w-full" />}
+            {isLoading && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground flex items-center">
+                    <Sparkles className="w-4 h-4 mr-1 text-primary animate-pulse" />
+                    {aiStatus}
+                  </span>
+                  <span className="text-sm font-medium">{progress}%</span>
+                </div>
+                <Progress value={progress} className="w-full" />
+              </div>
+            )}
 
             <Button
               type="submit"
               disabled={isLoading}
               className="w-full group"
             >
-              {isLoading ? "Searching..." : "Compare Prices"}
+              <Sparkles className="mr-2 h-4 w-4 text-primary-foreground group-hover:animate-ping" />
+              {isLoading ? "AI Searching..." : "Compare Prices with AI"}
             </Button>
           </form>
         </TabsContent>
@@ -185,14 +214,26 @@ export const CrawlForm = () => {
               />
             </div>
 
-            {isLoading && <Progress value={progress} className="w-full" />}
+            {isLoading && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground flex items-center">
+                    <Sparkles className="w-4 h-4 mr-1 text-primary animate-pulse" />
+                    {aiStatus}
+                  </span>
+                  <span className="text-sm font-medium">{progress}%</span>
+                </div>
+                <Progress value={progress} className="w-full" />
+              </div>
+            )}
 
             <Button
               type="submit"
               disabled={isLoading}
               className="w-full group"
             >
-              {isLoading ? "Searching..." : "Search Products"}
+              <Sparkles className="mr-2 h-4 w-4 text-primary-foreground group-hover:animate-ping" />
+              {isLoading ? "AI Searching..." : "AI-Powered Search"}
             </Button>
           </form>
         </TabsContent>
@@ -200,7 +241,7 @@ export const CrawlForm = () => {
         <TabsContent value="barcode">
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Click the button below to open your camera and scan a product barcode
+              Click the button below to open your camera and scan a product barcode. Our AI will help identify the product.
             </p>
             <Button
               onClick={() => setShowScanner(true)}
@@ -208,7 +249,7 @@ export const CrawlForm = () => {
               type="button"
             >
               <Camera className="mr-2 h-4 w-4" />
-              Start Barcode Scanner
+              Start AI Barcode Scanner
             </Button>
           </div>
         </TabsContent>

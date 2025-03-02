@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 interface ErrorResponse {
@@ -49,12 +48,13 @@ interface ChatResponse {
 
 type CrawlResponse = CrawlStatusResponse | ErrorResponse;
 
-// Cache implementation
+// Cache implementation with debugging
 class CacheManager {
   private static cache: Map<string, {data: any, timestamp: number}> = new Map();
   private static CACHE_DURATION = 1000 * 60 * 30; // 30 minutes cache
 
   static set(key: string, data: any): void {
+    console.log(`[Cache] Setting cache for key: ${key}`);
     this.cache.set(key, {
       data,
       timestamp: Date.now()
@@ -63,18 +63,24 @@ class CacheManager {
 
   static get(key: string): any | null {
     const cachedItem = this.cache.get(key);
-    if (!cachedItem) return null;
+    if (!cachedItem) {
+      console.log(`[Cache] Cache miss for key: ${key}`);
+      return null;
+    }
     
     // Check if cache is expired
     if (Date.now() - cachedItem.timestamp > this.CACHE_DURATION) {
+      console.log(`[Cache] Expired cache for key: ${key}`);
       this.cache.delete(key);
       return null;
     }
     
+    console.log(`[Cache] Cache hit for key: ${key}`);
     return cachedItem.data;
   }
 
   static clear(): void {
+    console.log(`[Cache] Clearing all cache entries`);
     this.cache.clear();
   }
 }
@@ -91,6 +97,7 @@ export class FirecrawlService {
     }
     
     try {
+      console.log("Calling Gemini API for product lookup:", query);
       const { data, error } = await supabase.functions.invoke('scrape-prices', {
         body: { 
           query, 
@@ -99,7 +106,12 @@ export class FirecrawlService {
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Gemini API error:", error);
+        throw error;
+      }
+      
+      console.log("Gemini API response:", data);
       
       const result = {
         success: true,
@@ -184,7 +196,7 @@ export class FirecrawlService {
       console.error("Error asking Gemini AI:", error);
       return {
         success: false,
-        message: "Sorry, I encountered an error processing your request."
+        message: "Sorry, I encountered an error processing your request. Our AI service might be temporarily unavailable."
       };
     }
   }
@@ -252,6 +264,8 @@ export class FirecrawlService {
     try {
       const inputType = searchTerm.startsWith('http') ? 'url' : /^\d+$/.test(searchTerm) ? 'barcode' : 'name';
       
+      console.log(`Starting crawl with input type '${inputType}' for: ${searchTerm}`);
+      
       const { data, error } = await supabase.functions.invoke('scrape-prices', {
         body: {
           query: searchTerm,
@@ -260,7 +274,12 @@ export class FirecrawlService {
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error during crawl:", error);
+        throw error;
+      }
+      
+      console.log("Crawl successful:", data);
       
       // Cache the result
       CacheManager.set(cacheKey, data);

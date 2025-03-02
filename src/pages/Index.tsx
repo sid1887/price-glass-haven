@@ -1,4 +1,3 @@
-
 import { CrawlForm } from "@/components/CrawlForm";
 import { ChatSupport } from "@/components/ChatSupport";
 import { Button } from "@/components/ui/button";
@@ -10,7 +9,7 @@ const Index = () => {
       <div className="container flex justify-between items-center py-6">
         <div className="flex items-center gap-2">
           <Sparkles className="h-6 w-6 text-primary animate-float" />
-          <h1 className="text-2xl font-bold text-gradient">CumPair</h1>
+          <h1 className="text-2xl font-bold text-gradient">CumPair - AI Enhanced</h1>
         </div>
       </div>
       
@@ -19,13 +18,13 @@ const Index = () => {
         <section className="container max-w-7xl mx-auto px-4 py-16 space-y-16">
           <div className="space-y-6 text-center max-w-3xl mx-auto">
             <div className="inline-flex items-center justify-center px-4 py-1.5 mb-4 text-sm font-medium rounded-full bg-primary/10 text-primary">
-              Compare Prices Like Never Before
+              AI-Powered Price Comparison
             </div>
             <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-gradient">
               Find the Best Deals
             </h1>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Enter a product URL, name, or scan its barcode to compare prices across multiple stores and find the best deals available instantly.
+              Enter a product URL, name, or scan its barcode to compare prices across multiple stores with AI-enhanced search and find the best deals available instantly.
             </p>
           </div>
 
@@ -39,7 +38,7 @@ const Index = () => {
           <div className="text-center space-y-4">
             <h2 className="text-4xl font-bold text-gradient">Why Choose Us</h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Get the best deals with our powerful price comparison tools
+              Get the best deals with our powerful AI-enhanced price comparison tools
             </p>
           </div>
 
@@ -47,8 +46,8 @@ const Index = () => {
             {[
               {
                 icon: <Search className="w-8 h-8" />,
-                title: "Smart Search",
-                description: "Find products across multiple stores instantly"
+                title: "AI Smart Search",
+                description: "Gemini AI helps find products across multiple stores instantly"
               },
               {
                 icon: <BarChart3 className="w-8 h-8" />,
