@@ -1,1 +1,12 @@
+
 project_id = "fvnpikmnhjksuwvfsskb"
+[api]
+enabled = true
+[db]
+enabled = true
+[realtime]
+enabled = true
+[storage]
+enabled = true
+[edge_functions]
+enabled = true
