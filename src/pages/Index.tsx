@@ -1,5 +1,6 @@
 
 import { CrawlForm } from "@/components/CrawlForm";
+import { ChatSupport } from "@/components/ChatSupport";
 import { Button } from "@/components/ui/button";
 import { BarChart3, Globe, Search, Zap, Sparkles, ArrowRight } from "lucide-react";
 
@@ -137,6 +138,9 @@ const Index = () => {
           </div>
         </section>
       </main>
+
+      {/* AI Chat Support */}
+      <ChatSupport />
     </div>
   );
 };
