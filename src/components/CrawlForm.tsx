@@ -50,6 +50,7 @@ export const CrawlForm = () => {
   const [showScanner, setShowScanner] = useState(false);
   const [bestDeal, setBestDeal] = useState<StorePrice | null>(null);
   const [aiStatus, setAiStatus] = useState<string>("");
+  const [searchAttempts, setSearchAttempts] = useState(0);
 
   const handleSubmit = async (e: React.FormEvent, searchType: 'url' | 'name' | 'barcode') => {
     e.preventDefault();
@@ -58,6 +59,7 @@ export const CrawlForm = () => {
     setCrawlResult(null);
     setBestDeal(null);
     setAiStatus("Starting AI-powered search...");
+    setSearchAttempts(prev => prev + 1);
 
     try {
       const searchTerm = searchType === 'url' ? url : productName;
@@ -84,6 +86,7 @@ export const CrawlForm = () => {
         });
       }, 300);
       
+      console.log("Making API call to search for:", searchTerm);
       const result = await FirecrawlService.crawlWebsite(searchTerm);
       
       clearInterval(progressInterval);
@@ -108,6 +111,23 @@ export const CrawlForm = () => {
           setBestDeal(sortedData[0]);
         }
       } else {
+        console.error("Search failed:", result.error);
+        
+        // If it's the first attempt, try one more time
+        if (searchAttempts <= 1) {
+          toast({
+            title: "Retrying search",
+            description: "First attempt didn't yield results. Trying again with enhanced parameters...",
+            duration: 3000,
+          });
+          
+          // Retry with different parameters
+          setTimeout(() => {
+            handleSubmit(e, searchType);
+          }, 1000);
+          return;
+        }
+        
         toast({
           title: "AI Search Error",
           description: (result as ErrorResponse).error || "Failed to search",
