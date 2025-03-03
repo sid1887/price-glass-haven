@@ -53,6 +53,12 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        neon: {
+          purple: "#D166FF",
+          pink: "#FF5EB1",
+          blue: "#00FFFF",
+          green: "#66FF99",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -79,7 +85,19 @@ export default {
         float: {
           "0%, 100%": { transform: "translateY(0)" },
           "50%": { transform: "translateY(-10px)" },
-        }
+        },
+        glow: {
+          "0%, 100%": { 
+            boxShadow: "0 0 15px rgba(209, 102, 255, 0.5)" 
+          },
+          "50%": { 
+            boxShadow: "0 0 25px rgba(209, 102, 255, 0.7)" 
+          },
+        },
+        shimmer: {
+          "0%": { backgroundPosition: "-40rem 0" },
+          "100%": { backgroundPosition: "40rem 0" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -87,6 +105,12 @@ export default {
         "fade-in": "fadeIn 0.5s ease-out forwards",
         "slide-in": "slideIn 0.5s ease-out forwards",
         "float": "float 3s ease-in-out infinite",
+        "glow": "glow 3s ease-in-out infinite",
+        "shimmer": "shimmer 2s linear infinite",
+      },
+      backgroundImage: {
+        "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
+        "shimmer": "linear-gradient(to right, transparent 0%, rgba(255,255,255,0.1) 50%, transparent 100%)",
       },
     },
   },
