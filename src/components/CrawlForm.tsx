@@ -111,7 +111,7 @@ export const CrawlForm = () => {
           setBestDeal(sortedData[0]);
         }
       } else {
-        console.error("Search failed:", result.error);
+        console.error("Search failed:", (result as ErrorResponse).error);
         
         // If it's the first attempt, try one more time
         if (searchAttempts <= 1) {
