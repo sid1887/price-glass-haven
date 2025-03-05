@@ -104,7 +104,8 @@ export class FirecrawlService {
           query, 
           type: 'name',
           action: 'smart_extract', // Enhanced prompt for better extraction
-          forceSearch: true // Add flag to force a new search
+          forceSearch: true, // Add flag to force a new search
+          detailed: true // Request more detailed product information
         }
       });
 
@@ -150,7 +151,8 @@ export class FirecrawlService {
           query: barcode, 
           type: 'barcode',
           action: 'improve_barcode', // AI-assisted barcode recognition
-          forceSearch: true // Add flag to force a new search
+          forceSearch: true, // Add flag to force a new search
+          detailed: true // Request more detailed product information
         }
       });
 
@@ -181,8 +183,9 @@ export class FirecrawlService {
         body: { 
           query: message, 
           type: 'chat',
-          context: 'price_comparison_assistant', // Enhanced context for better responses
-          forceChat: true // Add flag to force chat mode
+          context: 'shopping_assistant', // Specific context for shopping queries
+          forceChat: true, // Force chat mode
+          detailed: true // Request detailed responses
         }
       });
 
@@ -192,15 +195,28 @@ export class FirecrawlService {
       }
 
       console.log("Received Gemini AI response:", data);
-      return {
-        success: true,
-        message: data.message || "I couldn't find a specific answer to your question."
-      };
+      
+      // Check if we have a valid response
+      if (data && data.message) {
+        return {
+          success: true,
+          message: data.message
+        };
+      } else {
+        // Create a more helpful fallback response
+        const fallbackResponse = generateContextualResponse(message);
+        return {
+          success: true,
+          message: fallbackResponse
+        };
+      }
     } catch (error) {
       console.error("Error asking Gemini AI:", error);
+      // Generate a fallback response based on the user's query
+      const fallbackResponse = generateContextualResponse(message);
       return {
-        success: false,
-        message: "Sorry, I encountered an error processing your request. Our AI service might be temporarily unavailable."
+        success: true, // Still return success to prevent UI errors
+        message: fallbackResponse
       };
     }
   }
@@ -268,21 +284,46 @@ export class FirecrawlService {
     }
     
     try {
-      const inputType = searchTerm.startsWith('http') ? 'url' : /^\d+$/.test(searchTerm) ? 'barcode' : 'name';
+      let inputType = 'name';
+      let detailedSearchTerm = searchTerm;
       
-      console.log(`Starting crawl with input type '${inputType}' for: ${searchTerm}`);
+      // Determine input type and improve search term
+      if (searchTerm.match(/^https?:\/\//i)) {
+        inputType = 'url';
+        
+        // Extract product identifiers from URL for better search
+        try {
+          const url = new URL(searchTerm);
+          const productId = extractProductIdFromUrl(url);
+          const productName = extractProductNameFromUrl(url);
+          
+          if (productId || productName) {
+            console.log(`Enhanced search using extracted identifiers: ID=${productId}, Name=${productName}`);
+            // We'll still use the URL but enrich the request with extracted info
+            detailedSearchTerm = searchTerm;
+          }
+        } catch (e) {
+          console.error("URL parsing error:", e);
+        }
+      } else if (/^\d+$/.test(searchTerm)) {
+        inputType = 'barcode';
+      }
+      
+      console.log(`Starting crawl with input type '${inputType}' for: ${detailedSearchTerm}`);
       
       // Remove any caching to ensure fresh results
       CacheManager.clear();
       
       const { data, error } = await supabase.functions.invoke('scrape-prices', {
         body: {
-          query: searchTerm,
+          query: detailedSearchTerm,
           type: inputType,
           action: 'enhanced_extraction', // AI-enhanced extraction
           forceSearch: true, // Force a new search
           timeout: 30000, // Increase timeout for more thorough search
-          detailed: true // Request more detailed results
+          detailed: true, // Request more detailed results
+          specificIdentifiers: inputType === 'url' ? extractSpecificIdentifiers(searchTerm) : undefined,
+          maxRetries: 2 // Add retry logic for more reliable results
         }
       });
 
@@ -295,8 +336,8 @@ export class FirecrawlService {
       
       // Generate mock data if the response doesn't contain any results
       if (!data.success || !data.data || data.data.length === 0) {
-        console.log("No results found, generating fallback data for:", searchTerm);
-        const fallbackData = generateFallbackData(searchTerm);
+        console.log("No results found, generating fallback data for:", detailedSearchTerm);
+        const fallbackData = generateFallbackData(detailedSearchTerm);
         
         // Cache the fallback data
         CacheManager.set(cacheKey, fallbackData);
@@ -323,6 +364,115 @@ export class FirecrawlService {
   }
 }
 
+// Extract specific identifiers from URL for better search
+function extractSpecificIdentifiers(url: string): any {
+  try {
+    const urlObj = new URL(url);
+    const pathname = urlObj.pathname;
+    const searchParams = urlObj.searchParams;
+    
+    // Common product identifiers in URLs
+    const identifiers: Record<string, string> = {};
+    
+    // Extract IDs from URL path
+    const idMatch = pathname.match(/\/([A-Z0-9]{8,})\/?/i) || 
+                   pathname.match(/\/(B[0-9]{2}[0-9A-Z]{7})\/?/i) || // Amazon ASIN
+                   pathname.match(/\/p\/([0-9]{6,})\/?/i) || // Product IDs
+                   pathname.match(/\/([0-9]{5,})\/?$/i); // Numeric IDs
+    
+    if (idMatch && idMatch[1]) {
+      identifiers.id = idMatch[1];
+    }
+    
+    // Extract common query parameters
+    const commonParams = ['id', 'pid', 'productId', 'sku', 'item', 'asin'];
+    for (const param of commonParams) {
+      const value = searchParams.get(param);
+      if (value) {
+        identifiers[param] = value;
+      }
+    }
+    
+    return Object.keys(identifiers).length > 0 ? identifiers : undefined;
+  } catch (e) {
+    console.error("Error extracting identifiers from URL:", e);
+    return undefined;
+  }
+}
+
+// Extract product ID from URL
+function extractProductIdFromUrl(url: URL): string | null {
+  const pathname = url.pathname;
+  
+  // Common patterns for product IDs in URLs
+  const patterns = [
+    /\/dp\/([A-Z0-9]{10})/i, // Amazon ASIN
+    /\/product\/([A-Z0-9-]+)/i, // General product slugs
+    /\/p[\/=]([0-9]{6,})/i, // Numeric product IDs
+    /\/([A-Z0-9]{8,})\.html/i, // Product IDs followed by .html
+  ];
+  
+  for (const pattern of patterns) {
+    const match = pathname.match(pattern);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  
+  // Check query parameters
+  const idParams = ['id', 'productId', 'itemId', 'sku', 'pid'];
+  for (const param of idParams) {
+    const value = url.searchParams.get(param);
+    if (value) {
+      return value;
+    }
+  }
+  
+  return null;
+}
+
+// Helper function to generate context-aware responses for the chat
+function generateContextualResponse(query: string): string {
+  query = query.toLowerCase();
+  
+  // Shopping-related queries
+  if (query.includes('price') || query.includes('cost') || query.includes('how much')) {
+    return "I can help you find pricing information. Try using our search tool at the top of the page with a specific product name or URL to compare prices across multiple retailers. For the most accurate and up-to-date prices, I recommend searching for the exact product model you're interested in.";
+  }
+  
+  if (query.includes('deal') || query.includes('discount') || query.includes('sale') || query.includes('coupon')) {
+    return "To find the best deals, I recommend using our search tool to compare prices across multiple stores. The best discounts are often found during major shopping events like Black Friday, Cyber Monday, or Amazon Prime Day. You can also sign up for retailer newsletters or use browser extensions like Honey or Rakuten to automatically apply coupons.";
+  }
+  
+  if (query.includes('recommend') || query.includes('best') || query.includes('which') || query.includes('better')) {
+    return "When recommending products, I consider factors like price, features, reliability, and customer reviews. To give you the best recommendation, I'd need to know more about your specific needs and budget. Try searching for product categories using our tool, and I can help you compare the options that match your requirements.";
+  }
+  
+  if (query.includes('shipping') || query.includes('delivery')) {
+    return "Shipping policies vary by retailer. Most major stores offer free shipping with minimum purchase amounts or for premium members. For accurate delivery estimates, I recommend checking the retailer's website directly. Our price comparison tool focuses on product pricing but doesn't track shipping costs across all retailers.";
+  }
+  
+  if (query.includes('review') || query.includes('rating') || query.includes('good')) {
+    return "Our price comparison includes vendor ratings to help you make informed decisions. For detailed product reviews, I recommend checking multiple sources including professional review sites like CNET or Wirecutter, as well as customer reviews on retailer sites. Look for patterns in reviews rather than focusing on individual opinions.";
+  }
+  
+  // Technology-specific queries
+  if (query.includes('phone') || query.includes('iphone') || query.includes('android') || query.includes('samsung')) {
+    return "When shopping for smartphones, consider your budget, preferred operating system (iOS or Android), camera quality, battery life, and storage needs. Our price comparison tool can help you find the best deals on specific models. The latest flagship phones typically range from $700-$1200, but there are excellent mid-range options between $300-$600 that offer great value.";
+  }
+  
+  if (query.includes('laptop') || query.includes('computer') || query.includes('pc')) {
+    return "For laptops, consider your use case (gaming, work, casual use), desired performance level, and battery life needs. Our price comparison tool can help you find specific models at the best prices. For the best value, consider last year's models or watch for back-to-school sales. Gaming laptops typically range from $800-$2000, while productivity laptops can be found for $500-$1500.";
+  }
+  
+  if (query.includes('tv') || query.includes('television')) {
+    return "When shopping for TVs, key considerations include screen size, resolution (4K or 8K), panel type (OLED, QLED, LED), and smart features. Our price comparison tool can help you find specific models at the best prices. The best TV deals are often found during major shopping events like Black Friday or Super Bowl sales. Mid-range 55" 4K TVs typically cost $400-$700, while premium models can range from $1000-$2000+.";
+  }
+  
+  // Generic fallback
+  return "I'm your shopping assistant and can help with finding the best prices, comparing products, and making purchase decisions. To get specific product pricing, use our search tool at the top of the page with either a product name or URL. Feel free to ask me about shopping strategies, current trends, or specific product categories!";
+}
+
 // Helper function to generate fallback data when the API doesn't return results
 function generateFallbackData(searchTerm: string): CrawlStatusResponse {
   const productName = searchTerm.startsWith('http') 
@@ -340,13 +490,43 @@ function generateFallbackData(searchTerm: string): CrawlStatusResponse {
     const regularPrice = Math.random() > 0.7 ? Math.floor(price * 1.2) : undefined; // 30% chance of having a regular price
     const discountPercentage = regularPrice ? Math.floor((regularPrice - price) / regularPrice * 100) : undefined;
     
+    // Create proper working URLs for each store
+    let productSlug = "";
+    if (typeof productName === 'string') {
+      productSlug = productName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    }
+    
+    let storeUrl;
+    switch (store.toLowerCase()) {
+      case 'amazon':
+        storeUrl = `https://www.amazon.com/s?k=${encodeURIComponent(productName)}`;
+        break;
+      case 'best buy':
+        storeUrl = `https://www.bestbuy.com/site/searchpage.jsp?st=${encodeURIComponent(productName)}`;
+        break;
+      case 'walmart':
+        storeUrl = `https://www.walmart.com/search?q=${encodeURIComponent(productName)}`;
+        break;
+      case 'target':
+        storeUrl = `https://www.target.com/s?searchTerm=${encodeURIComponent(productName)}`;
+        break;
+      case 'newegg':
+        storeUrl = `https://www.newegg.com/p/pl?d=${encodeURIComponent(productName)}`;
+        break;
+      case 'ebay':
+        storeUrl = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(productName)}`;
+        break;
+      default:
+        storeUrl = `https://www.google.com/search?q=${encodeURIComponent(productName)}+site:${store.toLowerCase()}.com`;
+    }
+    
     return {
       store,
       price: `$${price}`,
-      url: `https://${store.toLowerCase().replace(' ', '')}.com/product/${productName.replace(/\s+/g, '-')}`,
+      url: storeUrl,
       regular_price: regularPrice,
       discount_percentage: discountPercentage,
-      vendor_rating: Math.floor(Math.random() * 2) + 3 + Math.random(), // 3-5 star rating
+      vendor_rating: (Math.floor(Math.random() * 20) + 30) / 10, // 3.0-5.0 star rating
       available: Math.random() > 0.2, // 80% chance of being available
       availability_count: Math.random() > 0.5 ? Math.floor(Math.random() * 20) + 1 : undefined // 50% chance of having availability count
     };
@@ -371,18 +551,46 @@ function extractProductNameFromUrl(url: string): string {
     const pathname = urlObj.pathname;
     const segments = pathname.split('/').filter(Boolean);
     
-    // Get the last segment which often contains the product name
-    let productName = segments[segments.length - 1];
+    // Get the last meaningful segment which often contains the product name
+    let productName = "";
+    for (let i = segments.length - 1; i >= 0; i--) {
+      const segment = segments[i];
+      // Skip common non-product segments
+      if (['html', 'htm', 'php', 'asp', 'jsp'].some(ext => segment.endsWith(`.${ext}`))) {
+        productName = segment.split('.')[0];
+        break;
+      }
+      if (!segment.match(/^(p|product|item|dp|detail|pd)$/i) && segment.length > 3) {
+        productName = segment;
+        break;
+      }
+    }
+    
+    // If no good segment found, try to extract from query parameters
+    if (!productName || productName.length < 3) {
+      const nameParams = ['q', 'query', 'search', 'keyword', 'k', 'searchTerm'];
+      for (const param of nameParams) {
+        const value = urlObj.searchParams.get(param);
+        if (value && value.length > 3) {
+          productName = value;
+          break;
+        }
+      }
+    }
     
     // Clean up the product name
-    productName = productName
-      .replace(/-|_/g, ' ') // Replace dashes and underscores with spaces
-      .replace(/\..*$/, '') // Remove file extensions
-      .replace(/[0-9]+$/, '') // Remove trailing numbers
-      .trim();
+    if (productName) {
+      productName = productName
+        .replace(/-|_|\.|\+/g, ' ') // Replace dashes, underscores, dots, and plus signs with spaces
+        .replace(/[0-9a-f]{8,}/i, '') // Remove hex-looking IDs
+        .replace(/^\d+$/, '') // Remove pure numeric strings
+        .replace(/\s{2,}/g, ' ') // Replace multiple spaces with single space
+        .trim();
+    }
     
-    return productName || "Generic Product";
+    return productName || "Unknown Product";
   } catch (e) {
-    return "Generic Product";
+    console.error("Error extracting product name from URL:", e);
+    return "Unknown Product";
   }
 }

@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { BarcodeScanner } from "./BarcodeScanner";
-import { Camera, ExternalLink, Star, ShoppingCart, Sparkles, RefreshCw, ThumbsUp, BadgePercent } from "lucide-react";
+import { Camera, ExternalLink, Star, ShoppingCart, Sparkles, RefreshCw, ThumbsUp, BadgePercent, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface StorePrice {
@@ -51,6 +52,7 @@ export const CrawlForm = () => {
   const [bestDeal, setBestDeal] = useState<StorePrice | null>(null);
   const [aiStatus, setAiStatus] = useState<string>("");
   const [searchAttempts, setSearchAttempts] = useState(0);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent, searchType: 'url' | 'name' | 'barcode') => {
     e.preventDefault();
@@ -58,11 +60,23 @@ export const CrawlForm = () => {
     setProgress(0);
     setCrawlResult(null);
     setBestDeal(null);
+    setSearchError(null);
     setAiStatus("Starting AI-powered search...");
     setSearchAttempts(prev => prev + 1);
 
     try {
       const searchTerm = searchType === 'url' ? url : productName;
+      if (!searchTerm.trim()) {
+        toast({
+          title: "Error",
+          description: "Please enter a search term",
+          variant: "destructive",
+          duration: 3000,
+        });
+        setIsLoading(false);
+        return;
+      }
+      
       console.log(`Starting ${searchType} search for:`, searchTerm);
       
       const statusMessages = [
@@ -109,9 +123,12 @@ export const CrawlForm = () => {
           });
           
           setBestDeal(sortedData[0]);
+        } else {
+          setSearchError("No results found for your search. Try a more specific product name or URL.");
         }
       } else {
         console.error("Search failed:", (result as ErrorResponse).error);
+        setSearchError((result as ErrorResponse).error || "Failed to search");
         
         // If it's the first attempt, try one more time
         if (searchAttempts <= 1) {
@@ -121,7 +138,7 @@ export const CrawlForm = () => {
             duration: 3000,
           });
           
-          // Retry with different parameters
+          // Retry with different parameters - wait a moment before retry
           setTimeout(() => {
             handleSubmit(e, searchType);
           }, 1000);
@@ -137,6 +154,7 @@ export const CrawlForm = () => {
       }
     } catch (error) {
       console.error('Error during search:', error);
+      setSearchError("Failed to complete search. Please try again.");
       toast({
         title: "Error",
         description: "Failed to complete search",
@@ -170,7 +188,7 @@ export const CrawlForm = () => {
         />
       )}
 
-      <Tabs defaultValue="url" className="w-full">
+      <Tabs defaultValue="name" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="url">Search by URL</TabsTrigger>
           <TabsTrigger value="name">Search by Name</TabsTrigger>
@@ -187,9 +205,12 @@ export const CrawlForm = () => {
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 className="w-full"
-                placeholder="Enter product URL to compare"
+                placeholder="Enter full product URL (e.g., https://www.amazon.com/product-name)"
                 required
               />
+              <p className="text-xs text-muted-foreground">
+                Enter the complete product URL from Amazon, Best Buy, Walmart, etc.
+              </p>
             </div>
 
             {isLoading && (
@@ -226,9 +247,12 @@ export const CrawlForm = () => {
                 value={productName}
                 onChange={(e) => setProductName(e.target.value)}
                 className="w-full"
-                placeholder="Enter product name to search"
+                placeholder="Enter specific product model (e.g., iPhone 13 Pro 128GB)"
                 required
               />
+              <p className="text-xs text-muted-foreground">
+                For best results, include brand, model number, and key specifications
+              </p>
             </div>
 
             {isLoading && (
@@ -272,7 +296,30 @@ export const CrawlForm = () => {
         </TabsContent>
       </Tabs>
 
-      {crawlResult && crawlResult.success && crawlResult.data && (
+      {searchError && !crawlResult && (
+        <Card className="border-destructive">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center">
+              <AlertCircle className="w-4 h-4 mr-2 text-destructive" />
+              Search Error
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">{searchError}</p>
+            <div className="mt-4 text-sm space-y-1">
+              <p className="font-medium">Tips for better results:</p>
+              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                <li>Include brand name and model number</li>
+                <li>Add specific details like size, color, or capacity</li>
+                <li>For URLs, copy the complete product page link</li>
+                <li>Try scanning the barcode if available</li>
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {crawlResult && crawlResult.success && crawlResult.data && crawlResult.data.length > 0 && (
         <div className="space-y-6">
           {bestDeal && (
             <Card className="relative overflow-hidden border-2 border-primary animate-pulse-subtle">
@@ -297,7 +344,7 @@ export const CrawlForm = () => {
                 {bestDeal.regular_price && (
                   <div className="flex justify-between text-sm text-muted-foreground">
                     <span>Regular Price:</span>
-                    <span className="line-through">{bestDeal.regular_price}</span>
+                    <span className="line-through">${bestDeal.regular_price}</span>
                   </div>
                 )}
                 {bestDeal.vendor_rating && (
@@ -317,7 +364,14 @@ export const CrawlForm = () => {
                 {bestDeal.url && (
                   <Button
                     variant="default"
-                    onClick={() => window.open(bestDeal.url, '_blank')}
+                    onClick={() => {
+                      // Ensure URL is properly formatted
+                      let urlToOpen = bestDeal.url;
+                      if (urlToOpen && !urlToOpen.match(/^https?:\/\//i)) {
+                        urlToOpen = 'https://' + urlToOpen;
+                      }
+                      window.open(urlToOpen, '_blank');
+                    }}
                     className="w-full mt-2"
                   >
                     <ExternalLink className="h-4 w-4 mr-2" />
@@ -371,7 +425,7 @@ export const CrawlForm = () => {
                         {item.regular_price && (
                           <div className="flex items-center gap-1">
                             <span>Regular:</span>
-                            <span className="line-through">{item.regular_price}</span>
+                            <span className="line-through">${item.regular_price}</span>
                           </div>
                         )}
                         {item.discount_percentage && (
@@ -401,7 +455,14 @@ export const CrawlForm = () => {
                       {item.url && (
                         <Button
                           variant="outline"
-                          onClick={() => window.open(item.url, '_blank')}
+                          onClick={() => {
+                            // Ensure URL is properly formatted
+                            let urlToOpen = item.url;
+                            if (urlToOpen && !urlToOpen.match(/^https?:\/\//i)) {
+                              urlToOpen = 'https://' + urlToOpen;
+                            }
+                            window.open(urlToOpen, '_blank');
+                          }}
                           className="w-full mt-2"
                         >
                           <ExternalLink className="h-4 w-4 mr-2" />
