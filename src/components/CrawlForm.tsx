@@ -179,6 +179,28 @@ export const CrawlForm = () => {
     handleSubmit(e, 'name');
   };
 
+  // Helper function to generate a valid search URL for a store
+  const getStoreSearchUrl = (store: string, productQuery: string): string => {
+    const query = encodeURIComponent(productQuery);
+    
+    switch(store) {
+      case 'Amazon':
+        return `https://www.amazon.com/s?k=${query}`;
+      case 'Best Buy':
+        return `https://www.bestbuy.com/site/searchpage.jsp?st=${query}`;
+      case 'Walmart':
+        return `https://www.walmart.com/search?q=${query}`;
+      case 'Target':
+        return `https://www.target.com/s?searchTerm=${query}`;
+      case 'Newegg':
+        return `https://www.newegg.com/p/pl?d=${query}`;
+      case 'eBay':
+        return `https://www.ebay.com/sch/i.html?_nkw=${query}`;
+      default:
+        return `https://www.google.com/search?q=${query}+site:${store.toLowerCase()}.com`;
+    }
+  };
+
   return (
     <div className="space-y-6">
       {showScanner && (
@@ -361,23 +383,18 @@ export const CrawlForm = () => {
                 )}
               </CardContent>
               <CardFooter>
-                {bestDeal.url && (
-                  <Button
-                    variant="default"
-                    onClick={() => {
-                      // Ensure URL is properly formatted
-                      let urlToOpen = bestDeal.url;
-                      if (urlToOpen && !urlToOpen.match(/^https?:\/\//i)) {
-                        urlToOpen = 'https://' + urlToOpen;
-                      }
-                      window.open(urlToOpen, '_blank');
-                    }}
-                    className="w-full mt-2"
-                  >
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Go to Store
-                  </Button>
-                )}
+                <Button
+                  variant="default"
+                  onClick={() => {
+                    // Use the helper function to generate a valid search URL
+                    const searchUrl = bestDeal.url || getStoreSearchUrl(bestDeal.store, productName || url);
+                    window.open(searchUrl, '_blank');
+                  }}
+                  className="w-full mt-2"
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Go to Store
+                </Button>
               </CardFooter>
             </Card>
           )}
@@ -452,23 +469,18 @@ export const CrawlForm = () => {
                         )}
                       </div>
                       
-                      {item.url && (
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            // Ensure URL is properly formatted
-                            let urlToOpen = item.url;
-                            if (urlToOpen && !urlToOpen.match(/^https?:\/\//i)) {
-                              urlToOpen = 'https://' + urlToOpen;
-                            }
-                            window.open(urlToOpen, '_blank');
-                          }}
-                          className="w-full mt-2"
-                        >
-                          <ExternalLink className="h-4 w-4 mr-2" />
-                          Visit Store
-                        </Button>
-                      )}
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          // Use the helper function to generate a valid search URL
+                          const searchUrl = item.url || getStoreSearchUrl(item.store, productName || url);
+                          window.open(searchUrl, '_blank');
+                        }}
+                        className="w-full mt-2"
+                      >
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        Visit Store
+                      </Button>
                     </div>
                   </div>
                 ))}

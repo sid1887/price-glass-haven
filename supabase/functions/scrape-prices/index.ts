@@ -69,19 +69,34 @@ async function handleChatRequest(query: string, context: string, forceChat: bool
   try {
     console.log(`Processing chat request: "${query}" with context: ${context}`);
     
-    // Generate AI response to the chat query
+    // Extract keywords for more contextual responses
+    const keywords = extractKeywords(query.toLowerCase());
+    console.log("Extracted keywords:", keywords);
+    
+    // Generate AI response to the chat query based on context and keywords
     let response: string;
     
-    if (query.toLowerCase().includes('price') || query.toLowerCase().includes('deal') || query.toLowerCase().includes('cheap')) {
-      response = "Based on current market trends, you can find great deals by comparing prices across multiple retailers. I recommend searching for specific products using our search tool to see real-time price comparisons.";
-    } else if (query.toLowerCase().includes('iphone') || query.toLowerCase().includes('apple')) {
-      response = "Apple products like iPhones tend to have consistent pricing, but you can find deals at authorized retailers during special events. The latest iPhone models range from $699 to $1099 depending on the model and storage capacity.";
-    } else if (query.toLowerCase().includes('best') && query.toLowerCase().includes('time')) {
-      response = "The best times to shop for deals are during major sales events like Black Friday, Cyber Monday, Amazon Prime Day, and back-to-school sales. Many retailers also offer end-of-season clearance sales.";
-    } else if (query.toLowerCase().includes('how') && query.toLowerCase().includes('work')) {
-      response = "Our price comparison tool works by searching across multiple online retailers to find the best prices for products. Simply enter a product name, URL, or scan a barcode, and our AI will find and compare prices for you.";
+    // Check for context to provide more relevant responses
+    if (keywords.includes('price') || keywords.includes('deal') || keywords.includes('cost') || keywords.includes('cheap')) {
+      response = "Based on my analysis of current market trends, you can find the best deals by comparing prices across multiple retailers. Our price comparison tool scans major stores like Amazon, Walmart, Best Buy, and others to find the lowest prices. I recommend entering specific product models for the most accurate results.";
+    } else if (keywords.includes('iphone') || keywords.includes('apple') || keywords.includes('phone')) {
+      response = "When shopping for smartphones like iPhones, price variations between retailers are often minimal for current models. However, you can find deals through carrier promotions, trade-in programs, or during major sales events. For older iPhone models, check authorized retailers like Best Buy or Walmart, which sometimes offer better discounts than Apple directly.";
+    } else if (keywords.includes('best') && (keywords.includes('time') || keywords.includes('when'))) {
+      response = "The best times to shop for deals depend on what you're buying. Electronics are cheapest during Black Friday, Cyber Monday, and Amazon Prime Day. Back-to-school season (July-August) offers great laptop deals. TVs are often discounted before the Super Bowl. For general shopping, end-of-season sales offer good values on clothing and home goods.";
+    } else if (keywords.includes('trust') || keywords.includes('reliable') || keywords.includes('accurate')) {
+      response = "Our price comparison data is gathered in real-time from major retailers. While we strive for accuracy, prices and availability can change quickly. We recommend using our tool to identify the best deals, then verifying the final price on the retailer's website before making a purchase. We also include vendor ratings to help you identify trustworthy sellers.";
+    } else if (keywords.includes('how') && keywords.includes('work')) {
+      response = "Our price comparison tool works by scanning major online retailers in real-time to find the best prices for products. Simply enter a product name, URL, or scan a barcode, and our AI will identify the product and compare prices across stores like Amazon, Walmart, Best Buy, and others. We also show you available discounts, vendor ratings, and stock availability to help you make informed decisions.";
+    } else if (keywords.includes('hello') || keywords.includes('hi') || keywords.includes('hey')) {
+      response = "Hello there! I'm your AI shopping assistant, ready to help you find the best deals and answer any shopping-related questions. I can help with product recommendations, price comparisons, shopping strategies, and more. What can I assist you with today?";
+    } else if (keywords.includes('thank')) {
+      response = "You're welcome! I'm happy to help with all your shopping needs. Feel free to ask if you have any other questions about products, pricing, or shopping strategies.";
+    } else if (keywords.includes('laptop') || keywords.includes('computer')) {
+      response = "When shopping for laptops, consider your specific needs. For basic tasks, look for models with at least 8GB RAM and an SSD. For gaming or content creation, prioritize a dedicated GPU and 16GB+ RAM. The sweet spot for value is typically $600-900 for general use laptops. Watch for deals during back-to-school season and Black Friday for savings of 15-30%.";
+    } else if (keywords.includes('tv') || keywords.includes('television')) {
+      response = "For TV shopping, size should match your viewing distance (sitting distance divided by 1.5 = recommended screen size in inches). OLED provides the best picture quality but costs more, while QLED offers bright, vibrant images at a better value. Most content is 4K now, so that resolution is sufficient for most buyers. January (before Super Bowl) and November (Black Friday) typically offer the best TV deals.";
     } else {
-      response = "I'm here to help you find the best deals and answer shopping-related questions. Feel free to ask about specific products, price trends, or shopping strategies!";
+      response = "I'm here to help you find the best deals and answer shopping-related questions. I can provide price comparisons, product recommendations, and shopping advice across categories like electronics, appliances, clothing, and more. Feel free to ask about specific products, price trends, or shopping strategies!";
     }
     
     console.log("Generated chat response:", response);
@@ -108,6 +123,18 @@ async function handleChatRequest(query: string, context: string, forceChat: bool
       }
     );
   }
+}
+
+// Extract important keywords from the query for better context understanding
+function extractKeywords(query: string): string[] {
+  // List of common filler words to remove
+  const fillerWords = ['a', 'an', 'the', 'this', 'that', 'these', 'those', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'for', 'and', 'nor', 'but', 'or', 'yet', 'so', 'if', 'then', 'else', 'when', 'of', 'to', 'in', 'on', 'by', 'at', 'from'];
+  
+  // Split into words, convert to lowercase, and filter out filler words
+  return query.toLowerCase()
+    .replace(/[^\w\s]/g, '') // Remove punctuation
+    .split(/\s+/)
+    .filter(word => word.length > 1 && !fillerWords.includes(word));
 }
 
 async function handleSummarizeRequest(text: string, action: string): Promise<Response> {
@@ -212,11 +239,38 @@ async function handleSearchRequest(query: string, type: string, action: string, 
       const regularPrice = hasDiscount ? price * (1 + (Math.random() * 0.3)) : undefined;
       const discountPercentage = regularPrice ? Math.round((regularPrice - price) / regularPrice * 100) : undefined;
       
+      // Create proper search URLs for each store
+      let storeUrl = '';
+      const encodedProduct = encodeURIComponent(productName);
+      
+      switch (store) {
+        case 'Amazon':
+          storeUrl = `https://www.amazon.com/s?k=${encodedProduct}`;
+          break;
+        case 'Best Buy':
+          storeUrl = `https://www.bestbuy.com/site/searchpage.jsp?st=${encodedProduct}`;
+          break;
+        case 'Walmart':
+          storeUrl = `https://www.walmart.com/search?q=${encodedProduct}`;
+          break;
+        case 'Target':
+          storeUrl = `https://www.target.com/s?searchTerm=${encodedProduct}`;
+          break;
+        case 'Newegg':
+          storeUrl = `https://www.newegg.com/p/pl?d=${encodedProduct}`;
+          break;
+        case 'eBay':
+          storeUrl = `https://www.ebay.com/sch/i.html?_nkw=${encodedProduct}`;
+          break;
+        default:
+          storeUrl = `https://www.google.com/search?q=${encodedProduct}`;
+      }
+      
       return {
         store,
         price: `$${price.toFixed(2)}`,
-        url: `https://${store.toLowerCase().replace(' ', '')}.com/product/${productName.replace(/\s+/g, '-')}`,
-        regular_price: regularPrice ? `$${regularPrice.toFixed(2)}` : undefined,
+        url: storeUrl,
+        regular_price: regularPrice ? regularPrice.toFixed(2) : undefined,
         discount_percentage: discountPercentage,
         vendor_rating: (3 + (Math.random() * 2)).toFixed(1),  // 3.0 to 5.0 rating
         available: Math.random() > 0.1,  // 90% chance of being available

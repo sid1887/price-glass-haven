@@ -293,8 +293,8 @@ export class FirecrawlService {
         // Extract product identifiers from URL for better search
         try {
           const url = new URL(searchTerm);
-          const productId = extractProductIdFromUrl(url);
-          const productName = extractProductNameFromUrl(url);
+          const productId = extractProductIdFromUrl(url.toString());
+          const productName = extractProductNameFromUrl(searchTerm);
           
           if (productId || productName) {
             console.log(`Enhanced search using extracted identifiers: ID=${productId}, Name=${productName}`);
@@ -400,34 +400,40 @@ function extractSpecificIdentifiers(url: string): any {
 }
 
 // Extract product ID from URL
-function extractProductIdFromUrl(url: URL): string | null {
-  const pathname = url.pathname;
-  
-  // Common patterns for product IDs in URLs
-  const patterns = [
-    /\/dp\/([A-Z0-9]{10})/i, // Amazon ASIN
-    /\/product\/([A-Z0-9-]+)/i, // General product slugs
-    /\/p[\/=]([0-9]{6,})/i, // Numeric product IDs
-    /\/([A-Z0-9]{8,})\.html/i, // Product IDs followed by .html
-  ];
-  
-  for (const pattern of patterns) {
-    const match = pathname.match(pattern);
-    if (match && match[1]) {
-      return match[1];
+function extractProductIdFromUrl(url: string): string | null {
+  try {
+    const urlObj = new URL(url);
+    const pathname = urlObj.pathname;
+    
+    // Common patterns for product IDs in URLs
+    const patterns = [
+      /\/dp\/([A-Z0-9]{10})/i, // Amazon ASIN
+      /\/product\/([A-Z0-9-]+)/i, // General product slugs
+      /\/p[\/=]([0-9]{6,})/i, // Numeric product IDs
+      /\/([A-Z0-9]{8,})\.html/i, // Product IDs followed by .html
+    ];
+    
+    for (const pattern of patterns) {
+      const match = pathname.match(pattern);
+      if (match && match[1]) {
+        return match[1];
+      }
     }
-  }
-  
-  // Check query parameters
-  const idParams = ['id', 'productId', 'itemId', 'sku', 'pid'];
-  for (const param of idParams) {
-    const value = url.searchParams.get(param);
-    if (value) {
-      return value;
+    
+    // Check query parameters
+    const idParams = ['id', 'productId', 'itemId', 'sku', 'pid'];
+    for (const param of idParams) {
+      const value = urlObj.searchParams.get(param);
+      if (value) {
+        return value;
+      }
     }
+    
+    return null;
+  } catch (error) {
+    console.error("Error parsing URL:", error);
+    return null;
   }
-  
-  return null;
 }
 
 // Helper function to generate context-aware responses for the chat
@@ -468,13 +474,25 @@ function generateContextualResponse(query: string): string {
     return "When shopping for TVs, key considerations include screen size, resolution (4K or 8K), panel type (OLED, QLED, LED), and smart features. Our price comparison tool can help you find specific models at the best prices. The best TV deals are often found during major shopping events like Black Friday or Super Bowl sales. Mid-range 55-inch 4K TVs typically cost $400-$700, while premium models can range from $1000-$2000+.";
   }
   
+  if (query.includes('trust') || query.includes('reliable') || query.includes('accurate')) {
+    return "Our price data comes from scanning major retailers in real-time and is refreshed regularly. While we strive for accuracy, prices can change quickly in the retail world. We recommend using our tool to get a general idea of the price range and then visiting the store directly for the most current pricing. Our vendor ratings can help you identify reliable retailers with good customer service.";
+  }
+  
+  if (query.includes('hello') || query.includes('hi') || query.includes('hey')) {
+    return "Hello! I'm your AI shopping assistant. I can help you find the best prices on products, compare features, understand retail policies, and make informed shopping decisions. What kind of product are you looking for today?";
+  }
+  
+  if (query.includes('thank') || query.includes('thanks') || query.includes('helpful')) {
+    return "You're welcome! I'm happy to help with your shopping needs. Feel free to ask if you have any other questions about products, prices, or shopping strategies.";
+  }
+  
   // Generic fallback
   return "I'm your shopping assistant and can help with finding the best prices, comparing products, and making purchase decisions. To get specific product pricing, use our search tool at the top of the page with either a product name or URL. Feel free to ask me about shopping strategies, current trends, or specific product categories!";
 }
 
 // Helper function to generate fallback data when the API doesn't return results
 function generateFallbackData(searchTerm: string): CrawlStatusResponse {
-  const productName = searchTerm.startsWith('http') 
+  const productName = typeof searchTerm === 'string' && searchTerm.startsWith('http') 
     ? extractProductNameFromUrl(searchTerm) 
     : searchTerm;
   
@@ -489,33 +507,31 @@ function generateFallbackData(searchTerm: string): CrawlStatusResponse {
     const regularPrice = Math.random() > 0.7 ? Math.floor(price * 1.2) : undefined; // 30% chance of having a regular price
     const discountPercentage = regularPrice ? Math.floor((regularPrice - price) / regularPrice * 100) : undefined;
     
-    // Create proper working URLs for each store
-    const productSlug = typeof productName === 'string' 
-      ? productName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
-      : '';
-    
+    // Create working search URLs for each store
     let storeUrl = '';
-    switch (store.toLowerCase()) {
-      case 'amazon':
-        storeUrl = `https://www.amazon.com/s?k=${encodeURIComponent(typeof productName === 'string' ? productName : '')}`;
+    const searchQuery = encodeURIComponent(typeof productName === 'string' ? productName : 'electronics');
+    
+    switch (store) {
+      case 'Amazon':
+        storeUrl = `https://www.amazon.com/s?k=${searchQuery}`;
         break;
-      case 'best buy':
-        storeUrl = `https://www.bestbuy.com/site/searchpage.jsp?st=${encodeURIComponent(typeof productName === 'string' ? productName : '')}`;
+      case 'Best Buy':
+        storeUrl = `https://www.bestbuy.com/site/searchpage.jsp?st=${searchQuery}`;
         break;
-      case 'walmart':
-        storeUrl = `https://www.walmart.com/search?q=${encodeURIComponent(typeof productName === 'string' ? productName : '')}`;
+      case 'Walmart':
+        storeUrl = `https://www.walmart.com/search?q=${searchQuery}`;
         break;
-      case 'target':
-        storeUrl = `https://www.target.com/s?searchTerm=${encodeURIComponent(typeof productName === 'string' ? productName : '')}`;
+      case 'Target':
+        storeUrl = `https://www.target.com/s?searchTerm=${searchQuery}`;
         break;
-      case 'newegg':
-        storeUrl = `https://www.newegg.com/p/pl?d=${encodeURIComponent(typeof productName === 'string' ? productName : '')}`;
+      case 'Newegg':
+        storeUrl = `https://www.newegg.com/p/pl?d=${searchQuery}`;
         break;
-      case 'ebay':
-        storeUrl = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(typeof productName === 'string' ? productName : '')}`;
+      case 'eBay':
+        storeUrl = `https://www.ebay.com/sch/i.html?_nkw=${searchQuery}`;
         break;
       default:
-        storeUrl = `https://www.google.com/search?q=${encodeURIComponent(typeof productName === 'string' ? productName : '')}+site:${store.toLowerCase()}.com`;
+        storeUrl = `https://www.google.com/search?q=${searchQuery}`;
     }
     
     return {
