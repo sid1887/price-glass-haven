@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 interface ErrorResponse {
@@ -491,12 +490,11 @@ function generateFallbackData(searchTerm: string): CrawlStatusResponse {
     const discountPercentage = regularPrice ? Math.floor((regularPrice - price) / regularPrice * 100) : undefined;
     
     // Create proper working URLs for each store
-    let productSlug = "";
-    if (typeof productName === 'string') {
-      productSlug = productName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-    }
+    const productSlug = typeof productName === 'string' 
+      ? productName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+      : '';
     
-    let storeUrl;
+    let storeUrl = '';
     switch (store.toLowerCase()) {
       case 'amazon':
         storeUrl = `https://www.amazon.com/s?k=${encodeURIComponent(productName)}`;
