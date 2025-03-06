@@ -465,7 +465,7 @@ function generateContextualResponse(query: string): string {
   }
   
   if (query.includes('tv') || query.includes('television')) {
-    return "When shopping for TVs, key considerations include screen size, resolution (4K or 8K), panel type (OLED, QLED, LED), and smart features. Our price comparison tool can help you find specific models at the best prices. The best TV deals are often found during major shopping events like Black Friday or Super Bowl sales. Mid-range 55" 4K TVs typically cost $400-$700, while premium models can range from $1000-$2000+.";
+    return "When shopping for TVs, key considerations include screen size, resolution (4K or 8K), panel type (OLED, QLED, LED), and smart features. Our price comparison tool can help you find specific models at the best prices. The best TV deals are often found during major shopping events like Black Friday or Super Bowl sales. Mid-range 55-inch 4K TVs typically cost $400-$700, while premium models can range from $1000-$2000+.";
   }
   
   // Generic fallback
