@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 
@@ -73,11 +72,34 @@ async function handleChatRequest(query: string, context: string, forceChat: bool
     const keywords = extractKeywords(query.toLowerCase());
     console.log("Extracted keywords:", keywords);
     
+    // Check if the query might include multiple questions or context from previous messages
+    const queryParts = query.split(/[|]/).map(part => part.trim());
+    const lastQuery = queryParts[queryParts.length - 1];
+    
     // Generate AI response to the chat query based on context and keywords
     let response: string;
     
+    // First check for specific product questions that might be in the context
+    if (lastQuery.includes('?') && (
+      lastQuery.toLowerCase().includes('which is better') || 
+      lastQuery.toLowerCase().includes('should i buy') ||
+      lastQuery.toLowerCase().includes('what do you recommend') ||
+      lastQuery.toLowerCase().includes('is it worth')
+    )) {
+      response = "To compare specific products, I recommend using our price comparison tool at the top of the page. For your specific question, I'd need to analyze current reviews and specifications. Generally, I recommend looking at factors like price-to-performance ratio, reliability (based on user reviews), and features that match your specific needs. Would you like me to help you search for these products?";
+    }
+    // Check if there are specific product keywords in the context
+    else if (
+      containsProductCategory(query) && 
+      (query.toLowerCase().includes('recommend') || 
+       query.toLowerCase().includes('best') || 
+       query.toLowerCase().includes('suggest'))
+    ) {
+      const productCategory = extractProductCategory(query);
+      response = `For ${productCategory}, the best choices depend on your specific needs and budget. Our price comparison tool can help you find the best deals across major retailers. I'd be happy to provide more specific recommendations if you can tell me more about your requirements, such as what features are most important to you and your approximate budget.`;
+    }
     // Check for context to provide more relevant responses
-    if (keywords.includes('price') || keywords.includes('deal') || keywords.includes('cost') || keywords.includes('cheap')) {
+    else if (keywords.includes('price') || keywords.includes('deal') || keywords.includes('cost') || keywords.includes('cheap')) {
       response = "Based on my analysis of current market trends, you can find the best deals by comparing prices across multiple retailers. Our price comparison tool scans major stores like Amazon, Walmart, Best Buy, and others to find the lowest prices. I recommend entering specific product models for the most accurate results.";
     } else if (keywords.includes('iphone') || keywords.includes('apple') || keywords.includes('phone')) {
       response = "When shopping for smartphones like iPhones, price variations between retailers are often minimal for current models. However, you can find deals through carrier promotions, trade-in programs, or during major sales events. For older iPhone models, check authorized retailers like Best Buy or Walmart, which sometimes offer better discounts than Apple directly.";
@@ -92,11 +114,20 @@ async function handleChatRequest(query: string, context: string, forceChat: bool
     } else if (keywords.includes('thank')) {
       response = "You're welcome! I'm happy to help with all your shopping needs. Feel free to ask if you have any other questions about products, pricing, or shopping strategies.";
     } else if (keywords.includes('laptop') || keywords.includes('computer')) {
-      response = "When shopping for laptops, consider your specific needs. For basic tasks, look for models with at least 8GB RAM and an SSD. For gaming or content creation, prioritize a dedicated GPU and 16GB+ RAM. The sweet spot for value is typically $600-900 for general use laptops. Watch for deals during back-to-school season and Black Friday for savings of 15-30%.";
+      response = "When shopping for laptops, consider your specific needs. For basic tasks, look for models with at least 8GB RAM and an SSD. For gaming or content creation, prioritize a dedicated GPU and 16GB+ RAM. The sweet spot for value is typically $600-900 for general use laptops. Watch for deals during back-to-school season and Black Friday for savings of 15-30%";
     } else if (keywords.includes('tv') || keywords.includes('television')) {
       response = "For TV shopping, size should match your viewing distance (sitting distance divided by 1.5 = recommended screen size in inches). OLED provides the best picture quality but costs more, while QLED offers bright, vibrant images at a better value. Most content is 4K now, so that resolution is sufficient for most buyers. January (before Super Bowl) and November (Black Friday) typically offer the best TV deals.";
+    } else if (keywords.includes('history') || keywords.includes('past')) {
+      response = "You can view your search history at the top of the search form. It shows your past product searches and best prices found. Simply click on any item in your history to quickly re-run that search with updated pricing information. This feature helps you track price changes over time and quickly reference products you've previously searched for.";
+    } else if (lastQuery.toLowerCase().includes('what else can you do') || lastQuery.toLowerCase().includes('what can you help with')) {
+      response = "I can help you find the best deals on products, compare prices across different retailers, provide shopping advice for specific categories like electronics, home goods, or clothing, explain shopping terms and policies, recommend the best times to buy certain products, and analyze whether a deal is actually good based on historical prices. What would you like help with today?";
     } else {
-      response = "I'm here to help you find the best deals and answer shopping-related questions. I can provide price comparisons, product recommendations, and shopping advice across categories like electronics, appliances, clothing, and more. Feel free to ask about specific products, price trends, or shopping strategies!";
+      // For generic responses, try to connect to previous context if available
+      if (queryParts.length > 1) {
+        response = "Based on our conversation, I'd be happy to help with your question. I can provide price comparisons, product recommendations, and shopping advice across various categories. For the most specific help, try using our price comparison tool at the top of the page to search for products you're interested in. Is there a particular product or shopping topic you'd like to know more about?";
+      } else {
+        response = "I'm here to help you find the best deals and answer shopping-related questions. I can provide price comparisons, product recommendations, and shopping advice across categories like electronics, appliances, clothing, and more. Feel free to ask about specific products, price trends, or shopping strategies!";
+      }
     }
     
     console.log("Generated chat response:", response);
@@ -123,6 +154,53 @@ async function handleChatRequest(query: string, context: string, forceChat: bool
       }
     );
   }
+}
+
+// Check if a string contains a recognizable product category
+function containsProductCategory(text: string): boolean {
+  const productCategories = [
+    'tv', 'television', 'monitor', 'laptop', 'computer', 'phone', 'smartphone', 
+    'tablet', 'camera', 'headphone', 'speaker', 'smartwatch', 'watch', 
+    'refrigerator', 'fridge', 'microwave', 'dishwasher', 'washer', 'dryer', 
+    'vacuum', 'blender', 'toaster', 'coffeemaker', 'printer', 'console', 
+    'gaming', 'playstation', 'xbox', 'nintendo'
+  ];
+  
+  const textLower = text.toLowerCase();
+  return productCategories.some(category => textLower.includes(category));
+}
+
+// Extract product category from text
+function extractProductCategory(text: string): string {
+  const productCategories = [
+    { keywords: ['tv', 'television'], name: 'TVs' },
+    { keywords: ['monitor'], name: 'monitors' },
+    { keywords: ['laptop', 'notebook'], name: 'laptops' },
+    { keywords: ['desktop', 'computer', 'pc'], name: 'desktop computers' },
+    { keywords: ['phone', 'smartphone', 'iphone', 'android'], name: 'smartphones' },
+    { keywords: ['tablet', 'ipad'], name: 'tablets' },
+    { keywords: ['camera'], name: 'cameras' },
+    { keywords: ['headphone', 'earbud'], name: 'headphones' },
+    { keywords: ['speaker', 'soundbar'], name: 'audio equipment' },
+    { keywords: ['smartwatch', 'watch'], name: 'smartwatches' },
+    { keywords: ['refrigerator', 'fridge'], name: 'refrigerators' },
+    { keywords: ['microwave'], name: 'microwaves' },
+    { keywords: ['dishwasher'], name: 'dishwashers' },
+    { keywords: ['washer', 'dryer'], name: 'washing machines' },
+    { keywords: ['vacuum', 'cleaner'], name: 'vacuum cleaners' },
+    { keywords: ['kitchen', 'appliance'], name: 'kitchen appliances' },
+    { keywords: ['printer'], name: 'printers' },
+    { keywords: ['console', 'gaming', 'playstation', 'xbox', 'nintendo'], name: 'gaming consoles' }
+  ];
+  
+  const textLower = text.toLowerCase();
+  for (const category of productCategories) {
+    if (category.keywords.some(keyword => textLower.includes(keyword))) {
+      return category.name;
+    }
+  }
+  
+  return 'products';
 }
 
 // Extract important keywords from the query for better context understanding

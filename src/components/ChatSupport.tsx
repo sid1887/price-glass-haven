@@ -1,10 +1,10 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Sparkles, Send, X, MessageCircle, Loader2 } from "lucide-react";
+import { Sparkles, Send, X, MessageCircle, Loader2, HistoryIcon } from "lucide-react";
 import { FirecrawlService } from "@/utils/FirecrawlService";
 import { useToast } from "@/components/ui/use-toast";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Message {
   text: string;
@@ -28,13 +28,65 @@ export const ChatSupport = () => {
   const { toast } = useToast();
   const [consecutiveErrors, setConsecutiveErrors] = useState(0);
   const [chatHistory, setChatHistory] = useState<string[]>([]);
+  const [persistentChats, setPersistentChats] = useState<Message[][]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [activeChatIndex, setActiveChatIndex] = useState(0);
+
+  useEffect(() => {
+    try {
+      const savedChats = localStorage.getItem('shopping_assistant_chats');
+      if (savedChats) {
+        const parsedChats = JSON.parse(savedChats) as { messages: Message[], chatHistory: string[] }[];
+        if (parsedChats.length > 0) {
+          const formattedChats = parsedChats.map(chat => {
+            return chat.messages.map(msg => ({
+              ...msg,
+              timestamp: new Date(msg.timestamp)
+            }));
+          });
+          setPersistentChats(formattedChats);
+          
+          setMessages(formattedChats[0]);
+          setChatHistory(parsedChats[0].chatHistory || []);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading chat history:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (messages.length > 1) {
+      try {
+        const updatedPersistentChats = [...persistentChats];
+        
+        if (activeChatIndex < updatedPersistentChats.length) {
+          updatedPersistentChats[activeChatIndex] = messages;
+        } else {
+          updatedPersistentChats.unshift(messages);
+          setActiveChatIndex(0);
+        }
+        
+        const trimmedChats = updatedPersistentChats.slice(0, 10);
+        setPersistentChats(trimmedChats);
+        
+        const formattedChats = trimmedChats.map((chat, index) => ({
+          messages: chat,
+          chatHistory: index === activeChatIndex ? chatHistory : []
+        }));
+        
+        localStorage.setItem('shopping_assistant_chats', JSON.stringify(formattedChats));
+      } catch (error) {
+        console.error("Error saving chat history:", error);
+      }
+    }
+  }, [messages, chatHistory]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!message.trim()) return;
     
-    // Add user message to chat
     const userMessage: Message = {
       text: message,
       sender: 'user',
@@ -43,14 +95,12 @@ export const ChatSupport = () => {
     
     setMessages(prev => [...prev, userMessage]);
     
-    // Store message history to provide context
     const updatedHistory = [...chatHistory, message];
     setChatHistory(updatedHistory);
     
     setMessage("");
     setIsLoading(true);
     
-    // Add typing indicator
     const typingIndicator: Message = {
       text: "",
       sender: 'ai',
@@ -61,24 +111,18 @@ export const ChatSupport = () => {
     setMessages(prev => [...prev, typingIndicator]);
     
     try {
-      // Send message to AI with context and 12-second timeout
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('Request timeout')), 12000);
       });
       
-      // Add context to the request
-      const contextualizedMessage = updatedHistory.length > 1 
-        ? `Previous messages: ${updatedHistory.slice(0, -1).join(" | ")}. Current message: ${message}`
-        : message;
+      const contextString = updatedHistory.slice(-5).join(" | ");
       
-      const responsePromise = FirecrawlService.askGeminiAI(contextualizedMessage);
+      const responsePromise = FirecrawlService.askGeminiAI(contextString);
       
       const response = await Promise.race([responsePromise, timeoutPromise]) as any;
       
-      // Remove typing indicator
       setMessages(prev => prev.filter(msg => !msg.isTyping));
       
-      // Add AI response to chat
       const aiMessage: Message = {
         text: response.success 
           ? response.message 
@@ -89,12 +133,9 @@ export const ChatSupport = () => {
       
       setMessages(prev => [...prev, aiMessage]);
       
-      // Reset consecutive errors count on success
       setConsecutiveErrors(0);
       
-      // If the first approach failed, try a fallback approach
       if (!response.success) {
-        // Add typing indicator
         setMessages(prev => [...prev, {
           text: "",
           sender: 'ai',
@@ -103,7 +144,6 @@ export const ChatSupport = () => {
         }]);
         
         setTimeout(() => {
-          // Remove typing indicator
           setMessages(prev => prev.filter(msg => !msg.isTyping));
           
           const fallbackResponse = getResponseBasedOnKeywords(message);
@@ -118,13 +158,10 @@ export const ChatSupport = () => {
     } catch (error) {
       console.error("Error in chat:", error);
       
-      // Increment consecutive errors count
       setConsecutiveErrors(prev => prev + 1);
       
-      // Remove typing indicator
       setMessages(prev => prev.filter(msg => !msg.isTyping));
       
-      // Add fallback response
       const fallbackMessage: Message = {
         text: consecutiveErrors > 1 
           ? "I'm experiencing persistent connectivity issues. Let me switch to offline mode to help you better."
@@ -135,7 +172,6 @@ export const ChatSupport = () => {
       
       setMessages(prev => [...prev, fallbackMessage]);
       
-      // Add typing indicator for second fallback
       setMessages(prev => [...prev, {
         text: "",
         sender: 'ai',
@@ -143,9 +179,7 @@ export const ChatSupport = () => {
         isTyping: true
       }]);
       
-      // Generate a more detailed fallback response
       setTimeout(() => {
-        // Remove typing indicator
         setMessages(prev => prev.filter(msg => !msg.isTyping));
         
         const fallbackResponse = getResponseBasedOnKeywords(message);
@@ -161,7 +195,74 @@ export const ChatSupport = () => {
     }
   };
 
-  // Generate responses based on keywords when AI fails
+  const startNewChat = () => {
+    const welcomeMessage: Message = {
+      text: "Hi there! I'm your AI shopping assistant. How can I help you find the best deals today?",
+      sender: 'ai',
+      timestamp: new Date()
+    };
+    
+    const updatedChats = [[welcomeMessage], ...persistentChats];
+    setPersistentChats(updatedChats);
+    
+    setMessages([welcomeMessage]);
+    setChatHistory([]);
+    setActiveChatIndex(0);
+    setShowHistory(false);
+  };
+
+  const selectChat = (index: number) => {
+    if (index < persistentChats.length) {
+      setMessages(persistentChats[index]);
+      setActiveChatIndex(index);
+      setShowHistory(false);
+      
+      try {
+        const savedChats = localStorage.getItem('shopping_assistant_chats');
+        if (savedChats) {
+          const parsedChats = JSON.parse(savedChats) as { messages: Message[], chatHistory: string[] }[];
+          if (parsedChats[index] && parsedChats[index].chatHistory) {
+            setChatHistory(parsedChats[index].chatHistory || []);
+          } else {
+            setChatHistory([]);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading chat history for selected chat:", error);
+        setChatHistory([]);
+      }
+    }
+  };
+
+  const deleteChat = (index: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    const updatedChats = [...persistentChats];
+    updatedChats.splice(index, 1);
+    setPersistentChats(updatedChats);
+    
+    if (index === activeChatIndex) {
+      if (updatedChats.length > 0) {
+        setMessages(updatedChats[0]);
+        setActiveChatIndex(0);
+      } else {
+        startNewChat();
+      }
+    } else if (index < activeChatIndex) {
+      setActiveChatIndex(activeChatIndex - 1);
+    }
+    
+    try {
+      const formattedChats = updatedChats.map(chat => ({
+        messages: chat,
+        chatHistory: []
+      }));
+      localStorage.setItem('shopping_assistant_chats', JSON.stringify(formattedChats));
+    } catch (error) {
+      console.error("Error saving chat history after deletion:", error);
+    }
+  };
+
   const getResponseBasedOnKeywords = (query: string): string => {
     query = query.toLowerCase();
     
@@ -205,20 +306,51 @@ export const ChatSupport = () => {
       return "When evaluating product reviews, look for verified purchases and detailed feedback. The distribution of ratings matters more than the average—a product with mostly 5-star and 1-star reviews may have quality control issues. For tech products, professional reviews from sites like RTINGS, Wirecutter, or Consumer Reports can provide more objective assessments.";
     }
     
-    // Generic response if no keywords match
+    if (query.includes('history') || query.includes('past searches') || query.includes('previous')) {
+      return "You can access your search history at the top of the search form. It shows your recent product searches and the best prices you found. Click on any item in your history to quickly re-run that search with updated pricing information.";
+    }
+    
     return "I can help you find the best prices for products, compare features, and suggest shopping strategies. For specific product searches, try using our price comparison tool at the top of the page. Is there a particular product category you're interested in?";
   };
 
-  // Auto-scroll to the bottom when new messages arrive
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
 
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+  };
+
+  const getChatPreview = (chat: Message[]) => {
+    const lastUserMsg = [...chat].reverse().find(msg => msg.sender === 'user');
+    if (lastUserMsg) {
+      return lastUserMsg.text.length > 25 
+        ? lastUserMsg.text.substring(0, 25) + '...' 
+        : lastUserMsg.text;
+    }
+    
+    const firstAiMsg = chat.find(msg => msg.sender === 'ai');
+    if (firstAiMsg) {
+      return firstAiMsg.text.length > 25 
+        ? firstAiMsg.text.substring(0, 25) + '...' 
+        : firstAiMsg.text;
+    }
+    
+    return "New conversation";
+  };
+  
+  const getChatDate = (chat: Message[]) => {
+    if (chat.length > 0) {
+      const firstMessage = chat[0];
+      return firstMessage.timestamp.toLocaleDateString();
+    }
+    return "Today";
+  };
+
   return (
     <div className="fixed bottom-4 right-4 z-50">
-      {/* Chat bubble button */}
       {!isOpen && (
         <Button
           onClick={() => setIsOpen(true)}
@@ -228,80 +360,147 @@ export const ChatSupport = () => {
         </Button>
       )}
 
-      {/* Chat window */}
       {isOpen && (
         <div className="bg-card border rounded-lg shadow-xl w-80 md:w-96 flex flex-col h-[500px] max-h-[80vh]">
-          {/* Chat header */}
           <div className="p-4 border-b bg-primary text-primary-foreground flex justify-between items-center rounded-t-lg">
             <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5" />
               <h3 className="font-semibold">AI Shopping Assistant</h3>
             </div>
-            <Button 
-              variant="ghost" 
-              size="icon"
-              onClick={() => setIsOpen(false)}
-              className="text-primary-foreground hover:bg-primary/90"
-            >
-              <X className="h-5 w-5" />
-            </Button>
-          </div>
-
-          {/* Chat messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.map((msg, index) => (
-              <div 
-                key={index} 
-                className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+            <div className="flex items-center gap-1">
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={() => setShowHistory(!showHistory)}
+                className="text-primary-foreground hover:bg-primary/90"
               >
-                <div 
-                  className={`max-w-[80%] rounded-lg p-3 ${
-                    msg.sender === 'user' 
-                      ? 'bg-primary text-primary-foreground' 
-                      : msg.isTyping ? 'bg-muted animate-pulse' : 'bg-muted'
-                  }`}
-                >
-                  {msg.isTyping ? (
-                    <div className="flex items-center justify-center space-x-1 h-6">
-                      <div className="w-2 h-2 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]"></div>
-                      <div className="w-2 h-2 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]"></div>
-                      <div className="w-2 h-2 rounded-full bg-primary animate-bounce"></div>
-                    </div>
-                  ) : (
-                    <>
-                      <p className="text-sm whitespace-pre-line">{msg.text}</p>
-                      <p className="text-xs opacity-70 mt-1">
-                        {msg.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                      </p>
-                    </>
-                  )}
-                </div>
-              </div>
-            ))}
-            <div ref={messagesEndRef} />
+                <HistoryIcon className="h-5 w-5" />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={() => setIsOpen(false)}
+                className="text-primary-foreground hover:bg-primary/90"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
           </div>
 
-          {/* Chat input */}
-          <form onSubmit={handleSendMessage} className="p-4 border-t flex gap-2">
-            <Input
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Ask about products or prices..."
-              className="flex-1"
-              disabled={isLoading}
-            />
-            <Button 
-              type="submit"
-              size="icon"
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+          {showHistory ? (
+            <div className="flex-1 overflow-y-auto p-2">
+              <div className="flex justify-between items-center mb-3 px-2">
+                <h4 className="text-sm font-medium">Chat History</h4>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={startNewChat}
+                  className="text-xs px-2 py-1 h-8"
+                >
+                  New Chat
+                </Button>
+              </div>
+              
+              {persistentChats.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No chat history yet
+                </div>
               ) : (
-                <Send className="h-4 w-4" />
+                <div className="space-y-2">
+                  {persistentChats.map((chat, index) => (
+                    <div 
+                      key={index} 
+                      className={`p-3 rounded-lg cursor-pointer ${
+                        index === activeChatIndex 
+                          ? 'bg-primary/10 border border-primary/20' 
+                          : 'hover:bg-muted'
+                      }`}
+                      onClick={() => selectChat(index)}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="text-sm font-medium truncate">
+                            {getChatPreview(chat)}
+                          </div>
+                          <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                            <span>{getChatDate(chat)}</span>
+                            <span>•</span>
+                            <span>{chat.length} messages</span>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 opacity-70 hover:opacity-100"
+                          onClick={(e) => deleteChat(index, e)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
-            </Button>
-          </form>
+            </div>
+          ) : (
+            <ScrollArea className="flex-1">
+              <div className="p-4 space-y-4">
+                {messages.map((msg, index) => (
+                  <div 
+                    key={index} 
+                    className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div 
+                      className={`max-w-[80%] rounded-lg p-3 ${
+                        msg.sender === 'user' 
+                          ? 'bg-primary text-primary-foreground' 
+                          : msg.isTyping ? 'bg-muted animate-pulse' : 'bg-muted'
+                      }`}
+                    >
+                      {msg.isTyping ? (
+                        <div className="flex items-center justify-center space-x-1 h-6">
+                          <div className="w-2 h-2 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]"></div>
+                          <div className="w-2 h-2 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]"></div>
+                          <div className="w-2 h-2 rounded-full bg-primary animate-bounce"></div>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-sm whitespace-pre-line">{msg.text}</p>
+                          <p className="text-xs opacity-70 mt-1">
+                            {formatTime(msg.timestamp)}
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <div ref={messagesEndRef} />
+              </div>
+            </ScrollArea>
+          )}
+
+          {!showHistory && (
+            <form onSubmit={handleSendMessage} className="p-4 border-t flex gap-2">
+              <Input
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Ask about products or prices..."
+                className="flex-1"
+                disabled={isLoading}
+              />
+              <Button 
+                type="submit"
+                size="icon"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+              </Button>
+            </form>
+          )}
         </div>
       )}
     </div>

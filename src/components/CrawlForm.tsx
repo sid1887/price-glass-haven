@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,8 +9,21 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { BarcodeScanner } from "./BarcodeScanner";
-import { Camera, ExternalLink, Star, ShoppingCart, Sparkles, RefreshCw, ThumbsUp, BadgePercent, AlertCircle } from "lucide-react";
+import { 
+  Camera, 
+  ExternalLink, 
+  Star, 
+  ShoppingCart, 
+  Sparkles, 
+  RefreshCw, 
+  ThumbsUp, 
+  BadgePercent, 
+  AlertCircle,
+  BarChart 
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { HistoryList, HistoryItem } from "./HistoryList";
+import { v4 as uuidv4 } from 'uuid';
 
 interface StorePrice {
   store: string;
@@ -53,6 +66,39 @@ export const CrawlForm = () => {
   const [aiStatus, setAiStatus] = useState<string>("");
   const [searchAttempts, setSearchAttempts] = useState(0);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string>("name");
+  const [enhancedRatings, setEnhancedRatings] = useState<{
+    min: number;
+    max: number;
+    avg: number;
+    confidence: number;
+  } | null>(null);
+
+  // Load the most recent search when component mounts
+  useEffect(() => {
+    try {
+      const savedHistory = localStorage.getItem('price_comparison_history');
+      if (savedHistory) {
+        const parsedHistory = JSON.parse(savedHistory) as HistoryItem[];
+        if (parsedHistory.length > 0) {
+          // Sort by most recent first
+          const sortedHistory = parsedHistory.sort((a, b) => b.timestamp - a.timestamp);
+          const mostRecent = sortedHistory[0];
+          
+          // Set the appropriate input field based on search type
+          if (mostRecent.type === 'url') {
+            setUrl(mostRecent.query);
+            setActiveTab('url');
+          } else {
+            setProductName(mostRecent.query);
+            setActiveTab(mostRecent.type);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error loading history:", error);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent, searchType: 'url' | 'name' | 'barcode') => {
     e.preventDefault();
@@ -61,6 +107,7 @@ export const CrawlForm = () => {
     setCrawlResult(null);
     setBestDeal(null);
     setSearchError(null);
+    setEnhancedRatings(null);
     setAiStatus("Starting AI-powered search...");
     setSearchAttempts(prev => prev + 1);
 
@@ -123,6 +170,12 @@ export const CrawlForm = () => {
           });
           
           setBestDeal(sortedData[0]);
+
+          // Calculate enhanced ratings across similar products
+          calculateEnhancedRatings(result.data);
+          
+          // Save to history
+          saveToHistory(searchTerm, searchType, sortedData[0]);
         } else {
           setSearchError("No results found for your search. Try a more specific product name or URL.");
         }
@@ -167,6 +220,64 @@ export const CrawlForm = () => {
     }
   };
 
+  const calculateEnhancedRatings = (data: StorePrice[]) => {
+    const ratings = data
+      .filter(item => item.vendor_rating !== undefined)
+      .map(item => Number(item.vendor_rating));
+    
+    if (ratings.length > 0) {
+      const min = Math.min(...ratings);
+      const max = Math.max(...ratings);
+      const sum = ratings.reduce((acc, val) => acc + val, 0);
+      const avg = sum / ratings.length;
+      const confidence = Math.min(1, ratings.length / 5) * 100; // Higher confidence with more ratings
+      
+      setEnhancedRatings({
+        min,
+        max,
+        avg,
+        confidence
+      });
+    }
+  };
+
+  const saveToHistory = (query: string, type: 'url' | 'name' | 'barcode', bestPrice?: StorePrice) => {
+    try {
+      // Create history item
+      const historyItem: HistoryItem = {
+        id: uuidv4(),
+        timestamp: Date.now(),
+        query,
+        type,
+        bestPrice: bestPrice ? {
+          store: bestPrice.store,
+          price: bestPrice.price,
+          url: bestPrice.url
+        } : undefined
+      };
+      
+      // Get existing history
+      const savedHistory = localStorage.getItem('price_comparison_history');
+      let historyItems: HistoryItem[] = [];
+      
+      if (savedHistory) {
+        historyItems = JSON.parse(savedHistory);
+      }
+      
+      // Add new item (limit to last 50 searches)
+      historyItems.unshift(historyItem);
+      if (historyItems.length > 50) {
+        historyItems = historyItems.slice(0, 50);
+      }
+      
+      // Save back to localStorage
+      localStorage.setItem('price_comparison_history', JSON.stringify(historyItems));
+      
+    } catch (error) {
+      console.error("Error saving to history:", error);
+    }
+  };
+
   const handleBarcodeDetected = async (barcode: string) => {
     setShowScanner(false);
     setProductName(barcode);
@@ -176,7 +287,22 @@ export const CrawlForm = () => {
     });
     
     const e = { preventDefault: () => {} } as React.FormEvent;
-    handleSubmit(e, 'name');
+    handleSubmit(e, 'barcode');
+  };
+
+  const handleHistoryItemSelect = (item: HistoryItem) => {
+    // Set the appropriate input field based on search type
+    if (item.type === 'url') {
+      setUrl(item.query);
+      setActiveTab('url');
+    } else {
+      setProductName(item.query);
+      setActiveTab(item.type);
+    }
+    
+    // Trigger search
+    const e = { preventDefault: () => {} } as React.FormEvent;
+    handleSubmit(e, item.type);
   };
 
   // Helper function to generate a valid search URL for a store
@@ -210,7 +336,9 @@ export const CrawlForm = () => {
         />
       )}
 
-      <Tabs defaultValue="name" className="w-full">
+      <HistoryList onSelectItem={handleHistoryItemSelect} />
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="url">Search by URL</TabsTrigger>
           <TabsTrigger value="name">Search by Name</TabsTrigger>
@@ -369,12 +497,49 @@ export const CrawlForm = () => {
                     <span className="line-through">${bestDeal.regular_price}</span>
                   </div>
                 )}
-                {bestDeal.vendor_rating && (
+                
+                {enhancedRatings && (
+                  <div className="mt-4 border-t pt-3">
+                    <h4 className="text-sm font-medium flex items-center mb-2">
+                      <BarChart className="h-4 w-4 mr-1 text-blue-500" />
+                      Enhanced Ratings Analysis
+                    </h4>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="bg-muted rounded p-2">
+                        <div className="text-xs text-muted-foreground">Minimum</div>
+                        <div className="flex justify-center items-center mt-1">
+                          <Star className="h-3 w-3 text-yellow-500 mr-1" />
+                          <span className="font-medium">{enhancedRatings.min.toFixed(1)}</span>
+                        </div>
+                      </div>
+                      <div className="bg-primary/10 rounded p-2">
+                        <div className="text-xs text-muted-foreground">Average</div>
+                        <div className="flex justify-center items-center mt-1">
+                          <Star className="h-3 w-3 text-yellow-500 mr-1" />
+                          <span className="font-medium">{enhancedRatings.avg.toFixed(1)}</span>
+                        </div>
+                      </div>
+                      <div className="bg-muted rounded p-2">
+                        <div className="text-xs text-muted-foreground">Maximum</div>
+                        <div className="flex justify-center items-center mt-1">
+                          <Star className="h-3 w-3 text-yellow-500 mr-1" />
+                          <span className="font-medium">{enhancedRatings.max.toFixed(1)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-2 text-xs text-muted-foreground text-center">
+                      Based on ratings from {crawlResult.data.length} stores
+                    </div>
+                  </div>
+                )}
+                
+                {bestDeal.vendor_rating && !enhancedRatings && (
                   <div className="flex items-center gap-1">
                     <Star className="h-4 w-4 text-yellow-500" />
                     <span className="text-sm">{bestDeal.vendor_rating} Rating</span>
                   </div>
                 )}
+                
                 {bestDeal.available !== undefined && (
                   <div className="flex items-center gap-1">
                     <ShoppingCart className="h-4 w-4 text-blue-500" />

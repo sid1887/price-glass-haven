@@ -461,6 +461,10 @@ function generateContextualResponse(query: string): string {
     return "Our price comparison includes vendor ratings to help you make informed decisions. For detailed product reviews, I recommend checking multiple sources including professional review sites like CNET or Wirecutter, as well as customer reviews on retailer sites. Look for patterns in reviews rather than focusing on individual opinions.";
   }
   
+  if (query.includes('history') || query.includes('previous') || query.includes('past')) {
+    return "You can view your search history by looking at the History section at the top of the search form. This shows your recent product searches, including the best prices found. You can click on any item in your history to quickly re-run that search and get updated prices.";
+  }
+  
   // Technology-specific queries
   if (query.includes('phone') || query.includes('iphone') || query.includes('android') || query.includes('samsung')) {
     return "When shopping for smartphones, consider your budget, preferred operating system (iOS or Android), camera quality, battery life, and storage needs. Our price comparison tool can help you find the best deals on specific models. The latest flagship phones typically range from $700-$1200, but there are excellent mid-range options between $300-$600 that offer great value.";
