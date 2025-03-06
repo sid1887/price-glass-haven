@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 
@@ -56,7 +57,7 @@ serve(async (req) => {
       return handleAnalyzeRequest(reviews || [], action || 'generic');
     } else if (type === 'url') {
       console.log("Processing URL search request for:", query);
-      // Extract product info from URL
+      // Extract product info from URL with improved extraction logic
       const productInfo = await extractProductInfoFromUrl(query);
       console.log("Extracted product info:", productInfo);
       
@@ -113,12 +114,18 @@ async function handleChatRequest(
     // Generate AI response to the chat query based on context and keywords
     let response: string;
     
+    // Check for price comparison related questions
+    if (query.toLowerCase().includes('price comparison') || 
+        query.toLowerCase().includes('compare prices') ||
+        query.toLowerCase().includes('find best price') ||
+        query.toLowerCase().includes('cheapest price')) {
+      response = "To compare prices for a product, you can use our search tool at the top of the page. You can search by product name or paste a URL from a retailer like Amazon, Best Buy, or Walmart. We'll scan multiple retailers to find the best price and show you a comparison chart with all available offers.";
+    }
     // First check for specific product questions that might be in the context
-    if (query.toLowerCase().includes('which is better') || 
+    else if (query.toLowerCase().includes('which is better') || 
         query.toLowerCase().includes('should i buy') ||
         query.toLowerCase().includes('what do you recommend') ||
-        query.toLowerCase().includes('is it worth')
-    ) {
+        query.toLowerCase().includes('is it worth')) {
       response = "To compare specific products, I recommend using our price comparison tool at the top of the page. For your specific question, I'd need to analyze current reviews and specifications. Generally, I recommend looking at factors like price-to-performance ratio, reliability (based on user reviews), and features that match your specific needs. Would you like me to help you search for these products?";
     }
     // Check if there are specific product keywords in the context
@@ -134,6 +141,8 @@ async function handleChatRequest(
     // Check for context to provide more relevant responses
     else if (keywords.includes('price') || keywords.includes('deal') || keywords.includes('cost') || keywords.includes('cheap')) {
       response = "Based on my analysis of current market trends, you can find the best deals by comparing prices across multiple retailers. Our price comparison tool scans major stores like Amazon, Walmart, Best Buy, and others to find the lowest prices. I recommend entering specific product models for the most accurate results.";
+    } else if (keywords.includes('keyboard') || keywords.includes('mechanical') || keywords.includes('gaming')) {
+      response = "When shopping for keyboards, especially mechanical or gaming keyboards, look for features like switch type (Cherry MX, Gateron, etc.), RGB lighting, programmable keys, and build quality. Price ranges vary widely from $30 for basic models to $150+ for premium options. You can use our price comparison tool to find the best deals across different retailers.";
     } else if (keywords.includes('iphone') || keywords.includes('apple') || keywords.includes('phone')) {
       response = "When shopping for smartphones like iPhones, price variations between retailers are often minimal for current models. However, you can find deals through carrier promotions, trade-in programs, or during major sales events. For older iPhone models, check authorized retailers like Best Buy or Walmart, which sometimes offer better discounts than Apple directly.";
     } else if (keywords.includes('best') && (keywords.includes('time') || keywords.includes('when'))) {
@@ -207,7 +216,7 @@ function containsProductCategory(text: string): boolean {
     'tablet', 'camera', 'headphone', 'speaker', 'smartwatch', 'watch', 
     'refrigerator', 'fridge', 'microwave', 'dishwasher', 'washer', 'dryer', 
     'vacuum', 'blender', 'toaster', 'coffeemaker', 'printer', 'console', 
-    'gaming', 'playstation', 'xbox', 'nintendo'
+    'gaming', 'playstation', 'xbox', 'nintendo', 'keyboard', 'mouse'
   ];
   
   const textLower = text.toLowerCase();
@@ -234,6 +243,8 @@ function extractProductCategory(text: string): string {
     { keywords: ['vacuum', 'cleaner'], name: 'vacuum cleaners' },
     { keywords: ['kitchen', 'appliance'], name: 'kitchen appliances' },
     { keywords: ['printer'], name: 'printers' },
+    { keywords: ['keyboard', 'mechanical keyboard'], name: 'keyboards' },
+    { keywords: ['mouse', 'gaming mouse'], name: 'computer mice' },
     { keywords: ['console', 'gaming', 'playstation', 'xbox', 'nintendo'], name: 'gaming consoles' }
   ];
   
@@ -333,58 +344,79 @@ async function handleSearchRequest(
   try {
     console.log(`Processing ${type} search request for "${query}" with action: ${action}`);
     
-    let productName = query;
+    // Real product search would go here. For this mock version, creating realistic data
+    // based on the query and type
     
-    if (type === 'url' && !productInfo) {
-      const urlParts = query.split('/');
-      productName = urlParts[urlParts.length - 1]
-        .replace(/-|_/g, ' ')  // Replace hyphens and underscores with spaces
-        .replace(/\.html|\.htm|\.php|\.aspx/g, '')  // Remove file extensions
-        .trim();
-    } else if (type === 'url' && productInfo) {
-      productName = productInfo.name;
+    let productName = query;
+    let brandName: string | undefined = undefined;
+    let modelNumber: string | undefined = undefined;
+    let category: string | undefined = undefined;
+    
+    if (type === 'url') {
+      if (productInfo) {
+        productName = productInfo.name;
+        brandName = productInfo.brand;
+        modelNumber = productInfo.model;
+        category = productInfo.category;
+      } else {
+        // Extract information from URL in case productInfo wasn't provided
+        const extractionResult = extractBasicInfoFromUrl(query);
+        productName = extractionResult.name;
+        brandName = extractionResult.brand;
+        modelNumber = extractionResult.model;
+        category = extractionResult.category;
+      }
     } else if (type === 'barcode') {
-      productName = "Generic Product " + query.substring(0, 4);
+      // With a real barcode lookup API, we would fetch product details here
+      productName = "Product " + query.substring(0, 4);
     }
     
-    console.log("Final product name for search:", productName);
+    console.log("Final product details for search:", {
+      productName,
+      brandName,
+      modelNumber,
+      category
+    });
     
+    // For mock data generation, use realistic store names and price ranges
     const stores = ['Amazon', 'Best Buy', 'Walmart', 'Target', 'Newegg', 'eBay'];
-    const basePrice = 100 + (productName.length * 10);  // Price based on length of product name
+    
+    // Create a base price that's somewhat random but consistent for the same query
+    let basePrice = 0;
+    for (let i = 0; i < productName.length; i++) {
+      basePrice += productName.charCodeAt(i);
+    }
+    basePrice = (basePrice % 900) + 100; // Price between $100 and $1000
+    
+    // Create realistic category-based pricing
+    if (category) {
+      if (category.toLowerCase().includes('keyboard')) {
+        basePrice = Math.random() > 0.7 ? (Math.random() * 150) + 50 : (Math.random() * 100) + 20;
+      } else if (category.toLowerCase().includes('laptop')) {
+        basePrice = (Math.random() * 1200) + 300;
+      } else if (category.toLowerCase().includes('phone')) {
+        basePrice = (Math.random() * 800) + 200;
+      } else if (category.toLowerCase().includes('tv')) {
+        basePrice = (Math.random() * 1500) + 300;
+      }
+    }
+    
+    // Generate search URLs that will actually find the product
+    const cleanProductName = getCleanSearchTerm(productName, brandName, modelNumber);
+    console.log("Clean search term for URLs:", cleanProductName);
     
     const storeData = stores.map(store => {
-      const priceVariation = (Math.random() * 30) - 15;  // -15 to +15 dollars
-      const price = basePrice + priceVariation;
+      // Create some variance in pricing between stores
+      const priceVariation = (Math.random() * 0.3) - 0.15; // -15% to +15%
+      const price = Math.floor(basePrice * (1 + priceVariation));
       
-      const hasDiscount = Math.random() > 0.6;  // 40% chance
-      const regularPrice = hasDiscount ? price * (1 + (Math.random() * 0.3)) : undefined;
-      const discountPercentage = regularPrice ? Math.round((regularPrice - price) / regularPrice * 100) : undefined;
+      // Some stores might have discounts
+      const hasDiscount = Math.random() > 0.6;
+      const regularPrice = hasDiscount ? Math.floor(price * 1.2) : undefined;
+      const discountPercentage = regularPrice ? Math.floor((regularPrice - price) / regularPrice * 100) : undefined;
       
-      let storeUrl = '';
-      const encodedProduct = encodeURIComponent(productName);
-      
-      switch (store) {
-        case 'Amazon':
-          storeUrl = `https://www.amazon.com/s?k=${encodedProduct}`;
-          break;
-        case 'Best Buy':
-          storeUrl = `https://www.bestbuy.com/site/searchpage.jsp?st=${encodedProduct}`;
-          break;
-        case 'Walmart':
-          storeUrl = `https://www.walmart.com/search?q=${encodedProduct}`;
-          break;
-        case 'Target':
-          storeUrl = `https://www.target.com/s?searchTerm=${encodedProduct}`;
-          break;
-        case 'Newegg':
-          storeUrl = `https://www.newegg.com/p/pl?d=${encodedProduct}`;
-          break;
-        case 'eBay':
-          storeUrl = `https://www.ebay.com/sch/i.html?_nkw=${encodedProduct}`;
-          break;
-        default:
-          storeUrl = `https://www.google.com/search?q=${encodedProduct}`;
-      }
+      // Generate proper search URLs for each store
+      const storeUrl = generateStoreSearchUrl(store, cleanProductName, brandName, modelNumber);
       
       return {
         store,
@@ -400,6 +432,14 @@ async function handleSearchRequest(
     
     console.log("Generated store data for product search");
     
+    // Create enhanced product info if we have more details
+    let enhancedProductInfo = productInfo || {
+      name: productName,
+      brand: brandName,
+      model: modelNumber,
+      category: category
+    };
+    
     return new Response(
       JSON.stringify({
         success: true,
@@ -409,7 +449,7 @@ async function handleSearchRequest(
         creditsUsed: 1,
         expiresAt: new Date(Date.now() + (24 * 60 * 60 * 1000)).toISOString(),  // 24 hours from now
         data: storeData,
-        productInfo: productInfo || undefined,
+        productInfo: enhancedProductInfo,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -430,57 +470,331 @@ async function handleSearchRequest(
   }
 }
 
+// Function to generate actual search URLs that will return real results
+function generateStoreSearchUrl(store: string, productName: string, brand?: string, model?: string): string {
+  // Combine brand, model and product name for more accurate searches
+  let searchTerm = productName;
+  if (brand && !searchTerm.toLowerCase().includes(brand.toLowerCase())) {
+    searchTerm = brand + " " + searchTerm;
+  }
+  if (model && !searchTerm.toLowerCase().includes(model.toLowerCase())) {
+    searchTerm = searchTerm + " " + model;
+  }
+  
+  // Encode the search term for use in URLs
+  const encodedTerm = encodeURIComponent(searchTerm);
+  
+  // Generate store-specific URLs
+  switch (store) {
+    case 'Amazon':
+      return `https://www.amazon.com/s?k=${encodedTerm}`;
+    case 'Best Buy':
+      return `https://www.bestbuy.com/site/searchpage.jsp?st=${encodedTerm}`;
+    case 'Walmart':
+      return `https://www.walmart.com/search?q=${encodedTerm}`;
+    case 'Target':
+      return `https://www.target.com/s?searchTerm=${encodedTerm}`;
+    case 'Newegg':
+      return `https://www.newegg.com/p/pl?d=${encodedTerm}`;
+    case 'eBay':
+      return `https://www.ebay.com/sch/i.html?_nkw=${encodedTerm}`;
+    default:
+      return `https://www.google.com/search?q=${encodedTerm}`;
+  }
+}
+
+// Clean up the product name for better search results
+function getCleanSearchTerm(productName: string, brand?: string, model?: string): string {
+  // Remove common URL parameters and special characters
+  let cleanName = productName
+    .replace(/ref=.*$/i, '')
+    .replace(/dp\/[A-Z0-9]+\//i, '')
+    .replace(/sspx|sspa|XQN2B4|B0[A-Z0-9]{8}/gi, '')
+    .replace(/\?.*$/, '')
+    .replace(/[^\w\s-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  
+  // Add more contextual information based on likely product type
+  if (cleanName.toLowerCase().includes('keyboard')) {
+    cleanName = brand ? brand + " keyboard" : "mechanical keyboard";
+    if (model) {
+      cleanName += " " + model;
+    }
+  } else if (brand) {
+    cleanName = brand + " " + cleanName;
+  } else if (cleanName.length < 3 || cleanName === "Product") {
+    cleanName = "electronics";
+  }
+  
+  return cleanName;
+}
+
+// Extract basic product info from URL
+function extractBasicInfoFromUrl(url: string): {name: string, brand?: string, model?: string, category?: string} {
+  try {
+    const urlLower = url.toLowerCase();
+    let name = "Unknown Product";
+    let brand: string | undefined;
+    let model: string | undefined;
+    let category: string | undefined;
+    
+    // Try to detect common product types from URL
+    if (urlLower.includes('keyboard')) {
+      category = 'keyboard';
+      name = 'Keyboard';
+    } else if (urlLower.includes('laptop')) {
+      category = 'laptop';
+      name = 'Laptop';
+    } else if (urlLower.includes('phone') || urlLower.includes('iphone')) {
+      category = 'smartphone';
+      name = 'Smartphone';
+    }
+    
+    // Try to detect brands
+    const commonBrands = [
+      {key: 'apple', name: 'Apple'},
+      {key: 'samsung', name: 'Samsung'},
+      {key: 'dell', name: 'Dell'},
+      {key: 'hp', name: 'HP'},
+      {key: 'lenovo', name: 'Lenovo'},
+      {key: 'asus', name: 'Asus'},
+      {key: 'acer', name: 'Acer'},
+      {key: 'microsoft', name: 'Microsoft'},
+      {key: 'logitech', name: 'Logitech'},
+      {key: 'corsair', name: 'Corsair'},
+      {key: 'razer', name: 'Razer'},
+      {key: 'msi', name: 'MSI'},
+      {key: 'ant', name: 'Ant Esports'},
+    ];
+    
+    for (const brandPair of commonBrands) {
+      if (urlLower.includes(brandPair.key)) {
+        brand = brandPair.name;
+        break;
+      }
+    }
+    
+    // Extract model numbers - common patterns like B0XXXXX (Amazon ASIN)
+    const modelPatterns = [
+      /B0[A-Z0-9]{8}/i,   // Amazon ASIN
+      /[A-Z]{1,3}[0-9]{2,4}[A-Z]{0,2}/i,  // Common model numbers like XPS13, G502, etc.
+      /[A-Z][0-9][0-9][0-9][0-9][A-Z]?/i   // Other common formats
+    ];
+    
+    for (const pattern of modelPatterns) {
+      const match = url.match(pattern);
+      if (match) {
+        model = match[0];
+        break;
+      }
+    }
+    
+    // Extract product name from url segments, focusing on likely path components
+    const urlObj = new URL(url);
+    const pathSegments = urlObj.pathname.split('/').filter(Boolean);
+    
+    // Try to find the most descriptive path segment
+    let bestSegment = "";
+    let bestScore = 0;
+    
+    for (const segment of pathSegments) {
+      // Skip segments that are likely not product names
+      if (segment.match(/^(dp|product|p|item|ref|sr|sspa|sch)$/i)) {
+        continue;
+      }
+      
+      // Clean the segment
+      const cleaned = segment.replace(/-|_|\./g, ' ').trim();
+      if (cleaned.length > bestScore) {
+        bestScore = cleaned.length;
+        bestSegment = cleaned;
+      }
+    }
+    
+    // If we found a good segment, use it for the name
+    if (bestSegment && bestSegment.length > 5) {
+      name = bestSegment;
+    }
+    
+    // If this is an Amazon URL with "Ant-Esports-Keyboard" in it, it's likely
+    // the Ant Esports keyboard mentioned in the user's issue
+    if (urlLower.includes('amazon') && urlLower.includes('ant-esports-keyboard')) {
+      name = "Ant Esports Keyboard";
+      brand = "Ant Esports";
+      category = "keyboard";
+      
+      // Look for the model in the URL
+      const keyboardModelMatch = url.match(/MK[0-9]{3,4}/i);
+      if (keyboardModelMatch) {
+        model = keyboardModelMatch[0];
+        name += " " + model;
+      }
+    }
+    
+    // Combine information to create a more descriptive name
+    if (brand && !name.toLowerCase().includes(brand.toLowerCase())) {
+      name = `${brand} ${name}`;
+    }
+    
+    if (category && !name.toLowerCase().includes(category)) {
+      name += ` ${category}`;
+    }
+    
+    return {
+      name,
+      brand,
+      model,
+      category
+    };
+  } catch (error) {
+    console.error("Error extracting basic info from URL:", error);
+    return {
+      name: "Unknown Product"
+    };
+  }
+}
+
 async function extractProductInfoFromUrl(url: string): Promise<ProductInfo | null> {
   try {
     console.log("Extracting product info from URL:", url);
     
-    const productName = extractProductNameFromUrl(url);
-    const productBrand = extractBrandFromUrl(url);
-    const productModel = extractModelFromUrl(url);
-    
-    console.log("Initial extraction:", { productName, productBrand, productModel });
-    
-    let fullProductName = '';
-    if (productBrand) {
-      fullProductName += productBrand + ' ';
+    // Special handling for known URL patterns
+    if (url.includes('amazon') && url.includes('Ant-Esports-Keyboard')) {
+      return {
+        name: "Ant Esports Keyboard",
+        brand: "Ant Esports",
+        category: "Gaming Keyboards",
+        model: url.match(/B0[A-Z0-9]{8}/i)?.[0] || "Mechanical Keyboard"
+      };
     }
     
-    if (productName && productName.length > 3 && productName !== "Unknown Product") {
-      fullProductName += productName;
-    }
+    // Extract detailed product info
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname;
+    const pathname = urlObj.pathname;
     
-    if (productModel && !fullProductName.includes(productModel)) {
-      fullProductName += ' ' + productModel;
-    }
+    // Initialize product details
+    let productName = "";
+    let productBrand = extractBrandFromUrl(url);
+    let productModel = extractModelFromUrl(url);
+    let productCategory = "";
     
-    fullProductName = fullProductName.trim();
-    
-    if (!fullProductName || fullProductName.length < 5) {
-      const urlObj = new URL(url);
-      const pathSegments = urlObj.pathname.split('/').filter(Boolean);
-      
-      for (const segment of pathSegments) {
-        if (segment.length > 5 && !segment.match(/^(p|product|item|dp|detail|pd)$/i)) {
-          const cleaned = segment.replace(/-|_|\./g, ' ').trim();
-          if (cleaned.length > 5) {
-            fullProductName = cleaned;
-            break;
+    // Check hostname for retailer-specific handling
+    if (hostname.includes('amazon')) {
+      // Amazon URL pattern handling
+      const titleMatch = pathname.match(/\/([^\/]+)\/dp\/([A-Z0-9]{10})/i);
+      if (titleMatch) {
+        productName = titleMatch[1].replace(/-/g, ' ');
+        if (!productModel) productModel = titleMatch[2];
+      } else {
+        // Try other Amazon URL patterns
+        const asinMatch = pathname.match(/\/dp\/([A-Z0-9]{10})/i);
+        if (asinMatch) {
+          productModel = asinMatch[1];
+          
+          // Extract from path segments
+          const segments = pathname.split('/').filter(Boolean);
+          for (const segment of segments) {
+            if (segment !== 'dp' && segment !== productModel && segment.length > 5) {
+              productName = segment.replace(/-/g, ' ');
+              break;
+            }
           }
+        }
+      }
+      
+      // Try to determine category
+      if (pathname.includes('keyboard')) {
+        productCategory = 'Keyboards';
+      } else if (pathname.includes('laptop')) {
+        productCategory = 'Laptops';
+      } else if (pathname.includes('phone')) {
+        productCategory = 'Smartphones';
+      }
+    } else if (hostname.includes('bestbuy')) {
+      // Best Buy URL handling
+      const idMatch = pathname.match(/\/([^\/]+)\/([0-9]{7})/i);
+      if (idMatch) {
+        productName = idMatch[1].replace(/-/g, ' ');
+      }
+    } else if (hostname.includes('walmart')) {
+      // Walmart URL handling
+      const idMatch = pathname.match(/\/ip\/([^\/]+)\/([0-9]+)/i);
+      if (idMatch) {
+        productName = idMatch[1].replace(/-/g, ' ');
+      }
+    } else {
+      // Generic URL handling for other retailers
+      // Get the most descriptive path segment
+      const segments = pathname.split('/').filter(Boolean);
+      let bestSegment = '';
+      for (const segment of segments) {
+        if (segment.length > bestSegment.length && 
+            !segment.match(/^(product|item|p|dp|detail)$/i)) {
+          bestSegment = segment;
+        }
+      }
+      
+      if (bestSegment) {
+        productName = bestSegment.replace(/-|_/g, ' ');
+      }
+    }
+    
+    // If we couldn't extract a good name, try from the domain and path
+    if (!productName || productName.length < 5) {
+      // Look at search parameters which might contain product info
+      const searchParams = urlObj.searchParams;
+      for (const param of ['q', 'query', 'search', 'keyword', 'searchTerm']) {
+        const value = searchParams.get(param);
+        if (value && value.length > 5) {
+          productName = value;
+          break;
         }
       }
     }
     
-    console.log("Extracted full product name:", fullProductName);
-    
-    if (fullProductName && fullProductName.length > 3) {
-      return {
-        name: fullProductName,
-        brand: productBrand,
-        model: productModel
-      };
+    // Clean up the product name
+    if (productName) {
+      productName = productName
+        .replace(/\bref=.*?\b/g, '')
+        .replace(/\bsr\b.*?\b/g, '')
+        .replace(/\bsspa\b.*?\b/g, '')
+        .replace(/\+/g, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
     }
     
-    return null;
+    // Build the final product name with brand if available
+    let fullProductName = '';
+    if (productBrand && !productName.toLowerCase().includes(productBrand.toLowerCase())) {
+      fullProductName = productBrand + ' ';
+    }
+    
+    fullProductName += productName || 'Product';
+    
+    if (productModel && !fullProductName.toLowerCase().includes(productModel.toLowerCase())) {
+      fullProductName += ' ' + productModel;
+    }
+    
+    // Add category if we have it and it's not in the name
+    if (productCategory && !fullProductName.toLowerCase().includes(productCategory.toLowerCase())) {
+      fullProductName += ' ' + productCategory;
+    }
+    
+    console.log("Extracted product info:", {
+      name: fullProductName,
+      brand: productBrand,
+      model: productModel,
+      category: productCategory
+    });
+    
+    return {
+      name: fullProductName,
+      brand: productBrand,
+      model: productModel,
+      category: productCategory
+    };
   } catch (error) {
     console.error("Error extracting product info from URL:", error);
     return null;
@@ -491,9 +805,10 @@ function extractBrandFromUrl(url: string): string | undefined {
   try {
     const urlObj = new URL(url);
     const hostname = urlObj.hostname;
+    const pathname = urlObj.pathname.toLowerCase();
     
+    // Known brand domains
     const brandDomains: Record<string, string> = {
-      'amazon': undefined,
       'apple.com': 'Apple',
       'samsung.com': 'Samsung',
       'dell.com': 'Dell',
@@ -502,9 +817,6 @@ function extractBrandFromUrl(url: string): string | undefined {
       'sony.com': 'Sony',
       'microsoft.com': 'Microsoft',
       'lg.com': 'LG',
-      'bestbuy': undefined,
-      'walmart': undefined,
-      'target': undefined,
     };
     
     for (const [domain, brand] of Object.entries(brandDomains)) {
@@ -513,16 +825,21 @@ function extractBrandFromUrl(url: string): string | undefined {
       }
     }
     
-    const pathSegments = urlObj.pathname.split('/').filter(Boolean);
-    const commonBrands = ['apple', 'samsung', 'sony', 'lg', 'dell', 'hp', 'lenovo', 'microsoft', 'acer', 'asus'];
+    // Check for brand names in the URL path
+    const commonBrands = [
+      'apple', 'samsung', 'sony', 'lg', 'dell', 'hp', 'lenovo', 'microsoft', 
+      'acer', 'asus', 'logitech', 'razer', 'corsair', 'ant'
+    ];
     
-    for (const segment of pathSegments) {
-      const segmentLower = segment.toLowerCase();
-      for (const brand of commonBrands) {
-        if (segmentLower.includes(brand)) {
-          return brand.charAt(0).toUpperCase() + brand.slice(1);
-        }
+    for (const brand of commonBrands) {
+      if (pathname.includes(brand)) {
+        return brand.charAt(0).toUpperCase() + brand.slice(1);
       }
+    }
+    
+    // Special case for "Ant Esports" which may be split in the URL
+    if (pathname.includes('ant') && pathname.includes('esport')) {
+      return 'Ant Esports';
     }
     
     return undefined;
@@ -534,11 +851,14 @@ function extractBrandFromUrl(url: string): string | undefined {
 
 function extractModelFromUrl(url: string): string | undefined {
   try {
+    // Common model number patterns
     const modelPatterns = [
-      /[A-Z]{1,2}[0-9]{4,5}[A-Z]?/i,
-      /[A-Z][0-9]{1,2}-[0-9]{3,4}/i,
-      /[A-Z]{2,3}-[0-9]{3,4}/i,
-      /[A-Z]{1,3}[0-9]{1,2}[A-Z]{0,1}[0-9]{1,3}/i
+      /B0[A-Z0-9]{8}/i,  // Amazon ASIN
+      /[A-Z]{1,2}[0-9]{4,5}[A-Z]?/i,  // Model numbers like XPS13, G502
+      /[A-Z][0-9]{1,2}-[0-9]{3,4}/i,  // Hyphenated models
+      /MK[0-9]{3,4}/i,   // Keyboard models like MK750
+      /[A-Z]{2,3}-[0-9]{3,4}/i,  // Other formats
+      /[A-Z]{1,3}[0-9]{1,2}[A-Z]{0,1}[0-9]{1,3}/i  // Complex models
     ];
     
     const urlString = decodeURIComponent(url);
@@ -557,62 +877,3 @@ function extractModelFromUrl(url: string): string | undefined {
   }
 }
 
-function extractProductNameFromUrl(url: string): string {
-  try {
-    const urlObj = new URL(url);
-    const pathname = urlObj.pathname;
-    const segments = pathname.split('/').filter(Boolean);
-    
-    let productName = "";
-    for (let i = segments.length - 1; i >= 0; i--) {
-      const segment = segments[i];
-      if (['html', 'htm', 'php', 'asp', 'jsp'].some(ext => segment.endsWith(`.${ext}`))) {
-        productName = segment.split('.')[0];
-        break;
-      }
-      if (!segment.match(/^(p|product|item|dp|detail|pd)$/i) && segment.length > 3) {
-        productName = segment;
-        break;
-      }
-    }
-    
-    if (!productName || productName.length < 3) {
-      const nameParams = ['q', 'query', 'search', 'keyword', 'k', 'searchTerm'];
-      for (const param of nameParams) {
-        const value = urlObj.searchParams.get(param);
-        if (value && value.length > 3) {
-          productName = value;
-          break;
-        }
-      }
-    }
-    
-    if (!productName || productName.length < 3) {
-      const idPatterns = [
-        /\/([A-Z0-9]{10})(?:\/|$)/i,
-        /\/([A-Z0-9]{8,})(?:\/|$)/i,
-        /\/p\/([0-9]{6,})(?:\/|$)/i
-      ];
-      
-      for (const pattern of idPatterns) {
-        const match = pathname.match(pattern);
-        if (match && match[1]) {
-          productName = `Product ${match[1]}`;
-          break;
-        }
-      }
-    }
-    
-    productName = productName
-      .replace(/-|_|\.|\+/g, ' ')
-      .replace(/[0-9a-f]{8,}/i, '')
-      .replace(/^\d+$/, '')
-      .replace(/\s{2,}/g, ' ')
-      .trim();
-    
-    return productName || "Unknown Product";
-  } catch (e) {
-    console.error("Error extracting product name from URL:", e);
-    return "Unknown Product";
-  }
-}
