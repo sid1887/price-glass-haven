@@ -497,25 +497,25 @@ function generateFallbackData(searchTerm: string): CrawlStatusResponse {
     let storeUrl = '';
     switch (store.toLowerCase()) {
       case 'amazon':
-        storeUrl = `https://www.amazon.com/s?k=${encodeURIComponent(productName)}`;
+        storeUrl = `https://www.amazon.com/s?k=${encodeURIComponent(typeof productName === 'string' ? productName : '')}`;
         break;
       case 'best buy':
-        storeUrl = `https://www.bestbuy.com/site/searchpage.jsp?st=${encodeURIComponent(productName)}`;
+        storeUrl = `https://www.bestbuy.com/site/searchpage.jsp?st=${encodeURIComponent(typeof productName === 'string' ? productName : '')}`;
         break;
       case 'walmart':
-        storeUrl = `https://www.walmart.com/search?q=${encodeURIComponent(productName)}`;
+        storeUrl = `https://www.walmart.com/search?q=${encodeURIComponent(typeof productName === 'string' ? productName : '')}`;
         break;
       case 'target':
-        storeUrl = `https://www.target.com/s?searchTerm=${encodeURIComponent(productName)}`;
+        storeUrl = `https://www.target.com/s?searchTerm=${encodeURIComponent(typeof productName === 'string' ? productName : '')}`;
         break;
       case 'newegg':
-        storeUrl = `https://www.newegg.com/p/pl?d=${encodeURIComponent(productName)}`;
+        storeUrl = `https://www.newegg.com/p/pl?d=${encodeURIComponent(typeof productName === 'string' ? productName : '')}`;
         break;
       case 'ebay':
-        storeUrl = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(productName)}`;
+        storeUrl = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(typeof productName === 'string' ? productName : '')}`;
         break;
       default:
-        storeUrl = `https://www.google.com/search?q=${encodeURIComponent(productName)}+site:${store.toLowerCase()}.com`;
+        storeUrl = `https://www.google.com/search?q=${encodeURIComponent(typeof productName === 'string' ? productName : '')}+site:${store.toLowerCase()}.com`;
     }
     
     return {
