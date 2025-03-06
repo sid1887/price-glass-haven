@@ -1,4 +1,7 @@
 
+// This is a partial update focusing on the handleSubmit method in CrawlForm.tsx
+// We're only changing a portion of this large file
+
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
@@ -45,6 +48,7 @@ interface CrawlStatusResponse {
   creditsUsed: number;
   expiresAt: string;
   data: StorePrice[];
+  productInfo?: any;
 }
 
 interface ErrorResponse {
@@ -126,13 +130,22 @@ export const CrawlForm = () => {
       
       console.log(`Starting ${searchType} search for:`, searchTerm);
       
-      const statusMessages = [
-        "Analyzing search term with Gemini AI...",
-        "Searching across multiple stores...",
-        "Comparing prices and discounts...",
-        "Analyzing vendor ratings...",
-        "Finding the best deals for you..."
-      ];
+      // Different status messages based on search type
+      const statusMessages = searchType === 'url' 
+        ? [
+            "Analyzing URL with Gemini AI...",
+            "Extracting product information...",
+            "Searching for best prices across stores...",
+            "Comparing prices and discounts...",
+            "Finding the best deals for you..."
+          ]
+        : [
+            "Analyzing search term with Gemini AI...",
+            "Searching across multiple stores...",
+            "Comparing prices and discounts...",
+            "Analyzing vendor ratings...",
+            "Finding the best deals for you..."
+          ];
       
       let messageIndex = 0;
       const progressInterval = setInterval(() => {
@@ -161,6 +174,15 @@ export const CrawlForm = () => {
           duration: 3000,
         });
         setCrawlResult(result);
+        
+        // If we got product info from URL extraction, display a toast
+        if (searchType === 'url' && result.productInfo && result.productInfo.name) {
+          toast({
+            title: "Product Identified",
+            description: `Searching for: ${result.productInfo.name}`,
+            duration: 3000,
+          });
+        }
         
         if (result.data && result.data.length > 0) {
           const sortedData = [...result.data].sort((a, b) => {

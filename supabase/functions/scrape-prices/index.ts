@@ -18,6 +18,15 @@ interface RequestBody {
   context?: string;
   timeout?: number;
   detailed?: boolean;
+  previousMessages?: {role: string, content: string}[];
+}
+
+interface ProductInfo {
+  name: string;
+  brand?: string;
+  model?: string;
+  category?: string;
+  attributes?: Record<string, string>;
 }
 
 serve(async (req) => {
@@ -31,20 +40,33 @@ serve(async (req) => {
     
     // Parse request body
     const requestData: RequestBody = await req.json();
-    const { query, type, action, forceSearch, forceChat, reviews, context } = requestData;
+    const { query, type, action, forceSearch, forceChat, reviews, context, previousMessages } = requestData;
     
     console.log("Request data:", JSON.stringify(requestData));
 
     // Different handling based on request type
     if (type === 'chat') {
       console.log("Processing chat request with query:", query);
-      return handleChatRequest(query, context || 'general', forceChat || false);
+      return handleChatRequest(query, context || 'general', forceChat || false, previousMessages || []);
     } else if (type === 'summarize') {
       console.log("Processing summarize request with query:", query);
       return handleSummarizeRequest(query, action || 'generic');
     } else if (type === 'analyze') {
       console.log("Processing analyze request with reviews:", reviews?.length);
       return handleAnalyzeRequest(reviews || [], action || 'generic');
+    } else if (type === 'url') {
+      console.log("Processing URL search request for:", query);
+      // Extract product info from URL
+      const productInfo = await extractProductInfoFromUrl(query);
+      console.log("Extracted product info:", productInfo);
+      
+      if (productInfo && productInfo.name) {
+        // Use the extracted product name for search
+        return handleSearchRequest(productInfo.name, 'name', action || 'generic', forceSearch || false, requestData.detailed || false, productInfo);
+      } else {
+        // Fallback to direct URL handling if extraction fails
+        return handleSearchRequest(query, type, action || 'generic', forceSearch || false, requestData.detailed || false);
+      }
     } else {
       console.log(`Processing ${type} search request for: ${query}`);
       return handleSearchRequest(query, type, action || 'generic', forceSearch || false, requestData.detailed || false);
@@ -64,28 +86,39 @@ serve(async (req) => {
   }
 });
 
-async function handleChatRequest(query: string, context: string, forceChat: boolean): Promise<Response> {
+async function handleChatRequest(
+  query: string, 
+  context: string, 
+  forceChat: boolean, 
+  previousMessages: {role: string, content: string}[]
+): Promise<Response> {
   try {
     console.log(`Processing chat request: "${query}" with context: ${context}`);
+    console.log("Previous messages:", JSON.stringify(previousMessages));
     
     // Extract keywords for more contextual responses
     const keywords = extractKeywords(query.toLowerCase());
     console.log("Extracted keywords:", keywords);
     
-    // Check if the query might include multiple questions or context from previous messages
-    const queryParts = query.split(/[|]/).map(part => part.trim());
-    const lastQuery = queryParts[queryParts.length - 1];
+    // Build conversation context from previous messages
+    let conversationContext = "";
+    if (previousMessages && previousMessages.length > 0) {
+      conversationContext = previousMessages
+        .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
+        .join("\n");
+      
+      console.log("Built conversation context:", conversationContext);
+    }
     
     // Generate AI response to the chat query based on context and keywords
     let response: string;
     
     // First check for specific product questions that might be in the context
-    if (lastQuery.includes('?') && (
-      lastQuery.toLowerCase().includes('which is better') || 
-      lastQuery.toLowerCase().includes('should i buy') ||
-      lastQuery.toLowerCase().includes('what do you recommend') ||
-      lastQuery.toLowerCase().includes('is it worth')
-    )) {
+    if (query.toLowerCase().includes('which is better') || 
+        query.toLowerCase().includes('should i buy') ||
+        query.toLowerCase().includes('what do you recommend') ||
+        query.toLowerCase().includes('is it worth')
+    ) {
       response = "To compare specific products, I recommend using our price comparison tool at the top of the page. For your specific question, I'd need to analyze current reviews and specifications. Generally, I recommend looking at factors like price-to-performance ratio, reliability (based on user reviews), and features that match your specific needs. Would you like me to help you search for these products?";
     }
     // Check if there are specific product keywords in the context
@@ -119,12 +152,23 @@ async function handleChatRequest(query: string, context: string, forceChat: bool
       response = "For TV shopping, size should match your viewing distance (sitting distance divided by 1.5 = recommended screen size in inches). OLED provides the best picture quality but costs more, while QLED offers bright, vibrant images at a better value. Most content is 4K now, so that resolution is sufficient for most buyers. January (before Super Bowl) and November (Black Friday) typically offer the best TV deals.";
     } else if (keywords.includes('history') || keywords.includes('past')) {
       response = "You can view your search history at the top of the search form. It shows your past product searches and best prices found. Simply click on any item in your history to quickly re-run that search with updated pricing information. This feature helps you track price changes over time and quickly reference products you've previously searched for.";
-    } else if (lastQuery.toLowerCase().includes('what else can you do') || lastQuery.toLowerCase().includes('what can you help with')) {
+    } else if (query.toLowerCase().includes('what else can you do') || query.toLowerCase().includes('what can you help with')) {
       response = "I can help you find the best deals on products, compare prices across different retailers, provide shopping advice for specific categories like electronics, home goods, or clothing, explain shopping terms and policies, recommend the best times to buy certain products, and analyze whether a deal is actually good based on historical prices. What would you like help with today?";
     } else {
       // For generic responses, try to connect to previous context if available
-      if (queryParts.length > 1) {
-        response = "Based on our conversation, I'd be happy to help with your question. I can provide price comparisons, product recommendations, and shopping advice across various categories. For the most specific help, try using our price comparison tool at the top of the page to search for products you're interested in. Is there a particular product or shopping topic you'd like to know more about?";
+      if (conversationContext) {
+        // Look for patterns in the conversation to generate contextual responses
+        if (conversationContext.toLowerCase().includes('price') || 
+            conversationContext.toLowerCase().includes('cost') || 
+            conversationContext.toLowerCase().includes('deal')) {
+          response = "Based on our conversation about pricing, I'd recommend comparing across multiple retailers. Prices can vary significantly, and some stores offer price matching or additional benefits like extended warranties. Is there a specific product you're interested in comparing?";
+        } else if (conversationContext.toLowerCase().includes('quality') || 
+                   conversationContext.toLowerCase().includes('review') || 
+                   conversationContext.toLowerCase().includes('rating')) {
+          response = "From our discussion about product quality, I'd suggest looking at both professional reviews and user feedback. Our vendor ratings can help identify reliable sellers, but for detailed product quality assessment, specialized review sites like RTINGS, Consumer Reports, or Wirecutter provide in-depth analysis for many product categories.";
+        } else {
+          response = "Based on our conversation, I'd be happy to help with your question. I can provide price comparisons, product recommendations, and shopping advice across various categories. For the most specific help, try using our price comparison tool at the top of the page to search for products you're interested in. Is there a particular product or shopping topic you'd like to know more about?";
+        }
       } else {
         response = "I'm here to help you find the best deals and answer shopping-related questions. I can provide price comparisons, product recommendations, and shopping advice across categories like electronics, appliances, clothing, and more. Feel free to ask about specific products, price trends, or shopping strategies!";
       }
@@ -205,10 +249,8 @@ function extractProductCategory(text: string): string {
 
 // Extract important keywords from the query for better context understanding
 function extractKeywords(query: string): string[] {
-  // List of common filler words to remove
   const fillerWords = ['a', 'an', 'the', 'this', 'that', 'these', 'those', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'for', 'and', 'nor', 'but', 'or', 'yet', 'so', 'if', 'then', 'else', 'when', 'of', 'to', 'in', 'on', 'by', 'at', 'from'];
   
-  // Split into words, convert to lowercase, and filter out filler words
   return query.toLowerCase()
     .replace(/[^\w\s]/g, '') // Remove punctuation
     .split(/\s+/)
@@ -219,7 +261,6 @@ async function handleSummarizeRequest(text: string, action: string): Promise<Res
   try {
     console.log(`Processing summarize request with action: ${action}`);
     
-    // Generate summary of the provided text
     const summary = `This is a summarized version of the product description focusing on key features and benefits.`;
     
     return new Response(
@@ -250,7 +291,6 @@ async function handleAnalyzeRequest(reviews: string[], action: string): Promise<
   try {
     console.log(`Processing analyze request with ${reviews.length} reviews`);
     
-    // Generate analysis of the provided reviews
     const analysis = {
       sentiment: "positive",
       positivePoints: ["Good value", "High quality", "Fast shipping"],
@@ -282,42 +322,44 @@ async function handleAnalyzeRequest(reviews: string[], action: string): Promise<
   }
 }
 
-async function handleSearchRequest(query: string, type: string, action: string, forceSearch: boolean, detailed: boolean): Promise<Response> {
+async function handleSearchRequest(
+  query: string, 
+  type: string, 
+  action: string, 
+  forceSearch: boolean, 
+  detailed: boolean,
+  productInfo?: ProductInfo
+): Promise<Response> {
   try {
     console.log(`Processing ${type} search request for "${query}" with action: ${action}`);
     
-    // Determine product from query
     let productName = query;
-    if (type === 'url') {
-      // Extract product name from URL
+    
+    if (type === 'url' && !productInfo) {
       const urlParts = query.split('/');
       productName = urlParts[urlParts.length - 1]
         .replace(/-|_/g, ' ')  // Replace hyphens and underscores with spaces
         .replace(/\.html|\.htm|\.php|\.aspx/g, '')  // Remove file extensions
         .trim();
+    } else if (type === 'url' && productInfo) {
+      productName = productInfo.name;
     } else if (type === 'barcode') {
-      // For barcode, use a mock product lookup
       productName = "Generic Product " + query.substring(0, 4);
     }
     
-    console.log("Extracted product name:", productName);
+    console.log("Final product name for search:", productName);
     
-    // Generate mock price comparison data based on product name
     const stores = ['Amazon', 'Best Buy', 'Walmart', 'Target', 'Newegg', 'eBay'];
     const basePrice = 100 + (productName.length * 10);  // Price based on length of product name
     
-    // Create store prices with variations
     const storeData = stores.map(store => {
-      // Add some price variation
       const priceVariation = (Math.random() * 30) - 15;  // -15 to +15 dollars
       const price = basePrice + priceVariation;
       
-      // Sometimes add a regular price and discount
       const hasDiscount = Math.random() > 0.6;  // 40% chance
       const regularPrice = hasDiscount ? price * (1 + (Math.random() * 0.3)) : undefined;
       const discountPercentage = regularPrice ? Math.round((regularPrice - price) / regularPrice * 100) : undefined;
       
-      // Create proper search URLs for each store
       let storeUrl = '';
       const encodedProduct = encodeURIComponent(productName);
       
@@ -367,6 +409,7 @@ async function handleSearchRequest(query: string, type: string, action: string, 
         creditsUsed: 1,
         expiresAt: new Date(Date.now() + (24 * 60 * 60 * 1000)).toISOString(),  // 24 hours from now
         data: storeData,
+        productInfo: productInfo || undefined,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -384,5 +427,192 @@ async function handleSearchRequest(query: string, type: string, action: string, 
         status: 500,
       }
     );
+  }
+}
+
+async function extractProductInfoFromUrl(url: string): Promise<ProductInfo | null> {
+  try {
+    console.log("Extracting product info from URL:", url);
+    
+    const productName = extractProductNameFromUrl(url);
+    const productBrand = extractBrandFromUrl(url);
+    const productModel = extractModelFromUrl(url);
+    
+    console.log("Initial extraction:", { productName, productBrand, productModel });
+    
+    let fullProductName = '';
+    if (productBrand) {
+      fullProductName += productBrand + ' ';
+    }
+    
+    if (productName && productName.length > 3 && productName !== "Unknown Product") {
+      fullProductName += productName;
+    }
+    
+    if (productModel && !fullProductName.includes(productModel)) {
+      fullProductName += ' ' + productModel;
+    }
+    
+    fullProductName = fullProductName.trim();
+    
+    if (!fullProductName || fullProductName.length < 5) {
+      const urlObj = new URL(url);
+      const pathSegments = urlObj.pathname.split('/').filter(Boolean);
+      
+      for (const segment of pathSegments) {
+        if (segment.length > 5 && !segment.match(/^(p|product|item|dp|detail|pd)$/i)) {
+          const cleaned = segment.replace(/-|_|\./g, ' ').trim();
+          if (cleaned.length > 5) {
+            fullProductName = cleaned;
+            break;
+          }
+        }
+      }
+    }
+    
+    console.log("Extracted full product name:", fullProductName);
+    
+    if (fullProductName && fullProductName.length > 3) {
+      return {
+        name: fullProductName,
+        brand: productBrand,
+        model: productModel
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("Error extracting product info from URL:", error);
+    return null;
+  }
+}
+
+function extractBrandFromUrl(url: string): string | undefined {
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname;
+    
+    const brandDomains: Record<string, string> = {
+      'amazon': undefined,
+      'apple.com': 'Apple',
+      'samsung.com': 'Samsung',
+      'dell.com': 'Dell',
+      'hp.com': 'HP',
+      'lenovo.com': 'Lenovo',
+      'sony.com': 'Sony',
+      'microsoft.com': 'Microsoft',
+      'lg.com': 'LG',
+      'bestbuy': undefined,
+      'walmart': undefined,
+      'target': undefined,
+    };
+    
+    for (const [domain, brand] of Object.entries(brandDomains)) {
+      if (hostname.includes(domain)) {
+        return brand;
+      }
+    }
+    
+    const pathSegments = urlObj.pathname.split('/').filter(Boolean);
+    const commonBrands = ['apple', 'samsung', 'sony', 'lg', 'dell', 'hp', 'lenovo', 'microsoft', 'acer', 'asus'];
+    
+    for (const segment of pathSegments) {
+      const segmentLower = segment.toLowerCase();
+      for (const brand of commonBrands) {
+        if (segmentLower.includes(brand)) {
+          return brand.charAt(0).toUpperCase() + brand.slice(1);
+        }
+      }
+    }
+    
+    return undefined;
+  } catch (error) {
+    console.error("Error extracting brand from URL:", error);
+    return undefined;
+  }
+}
+
+function extractModelFromUrl(url: string): string | undefined {
+  try {
+    const modelPatterns = [
+      /[A-Z]{1,2}[0-9]{4,5}[A-Z]?/i,
+      /[A-Z][0-9]{1,2}-[0-9]{3,4}/i,
+      /[A-Z]{2,3}-[0-9]{3,4}/i,
+      /[A-Z]{1,3}[0-9]{1,2}[A-Z]{0,1}[0-9]{1,3}/i
+    ];
+    
+    const urlString = decodeURIComponent(url);
+    
+    for (const pattern of modelPatterns) {
+      const match = urlString.match(pattern);
+      if (match && match[0]) {
+        return match[0];
+      }
+    }
+    
+    return undefined;
+  } catch (error) {
+    console.error("Error extracting model from URL:", error);
+    return undefined;
+  }
+}
+
+function extractProductNameFromUrl(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    const pathname = urlObj.pathname;
+    const segments = pathname.split('/').filter(Boolean);
+    
+    let productName = "";
+    for (let i = segments.length - 1; i >= 0; i--) {
+      const segment = segments[i];
+      if (['html', 'htm', 'php', 'asp', 'jsp'].some(ext => segment.endsWith(`.${ext}`))) {
+        productName = segment.split('.')[0];
+        break;
+      }
+      if (!segment.match(/^(p|product|item|dp|detail|pd)$/i) && segment.length > 3) {
+        productName = segment;
+        break;
+      }
+    }
+    
+    if (!productName || productName.length < 3) {
+      const nameParams = ['q', 'query', 'search', 'keyword', 'k', 'searchTerm'];
+      for (const param of nameParams) {
+        const value = urlObj.searchParams.get(param);
+        if (value && value.length > 3) {
+          productName = value;
+          break;
+        }
+      }
+    }
+    
+    if (!productName || productName.length < 3) {
+      const idPatterns = [
+        /\/([A-Z0-9]{10})(?:\/|$)/i,
+        /\/([A-Z0-9]{8,})(?:\/|$)/i,
+        /\/p\/([0-9]{6,})(?:\/|$)/i
+      ];
+      
+      for (const pattern of idPatterns) {
+        const match = pathname.match(pattern);
+        if (match && match[1]) {
+          productName = `Product ${match[1]}`;
+          break;
+        }
+      }
+    }
+    
+    productName = productName
+      .replace(/-|_|\.|\+/g, ' ')
+      .replace(/[0-9a-f]{8,}/i, '')
+      .replace(/^\d+$/, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+    
+    return productName || "Unknown Product";
+  } catch (e) {
+    console.error("Error extracting product name from URL:", e);
+    return "Unknown Product";
   }
 }

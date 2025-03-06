@@ -17,6 +17,21 @@ interface StorePrice {
   offers?: any[];
 }
 
+interface ProductInfo {
+  name?: string;
+  brand?: string;
+  model?: string;
+  category?: string;
+  price?: string;
+  url?: string;
+  regular_price?: number;
+  discount_percentage?: number;
+  vendor_rating?: number;
+  available?: boolean;
+  availability_count?: number;
+  offers?: any[];
+}
+
 interface CrawlStatusResponse {
   success: true;
   status: string;
@@ -25,20 +40,7 @@ interface CrawlStatusResponse {
   creditsUsed: number;
   expiresAt: string;
   data: StorePrice[];
-}
-
-interface ProductInfo {
-  name?: string;
-  price?: string;
-  brand?: string;
-  category?: string;
-  url?: string;
-  regular_price?: number;
-  discount_percentage?: number;
-  vendor_rating?: number;
-  available?: boolean;
-  availability_count?: number;
-  offers?: any[];
+  productInfo?: ProductInfo;
 }
 
 interface ChatResponse {
@@ -175,16 +177,19 @@ export class FirecrawlService {
     }
   }
 
-  static async askGeminiAI(message: string): Promise<ChatResponse> {
+  static async askGeminiAI(message: string, previousMessages: {role: string, content: string}[] = []): Promise<ChatResponse> {
     try {
       console.log("Sending chat request to Gemini AI:", message);
+      console.log("Chat context from previous messages:", previousMessages);
+      
       const { data, error } = await supabase.functions.invoke('scrape-prices', {
         body: { 
           query: message, 
           type: 'chat',
           context: 'shopping_assistant', // Specific context for shopping queries
           forceChat: true, // Force chat mode
-          detailed: true // Request detailed responses
+          detailed: true, // Request detailed responses
+          previousMessages: previousMessages // Pass conversation history
         }
       });
 
@@ -284,7 +289,6 @@ export class FirecrawlService {
     
     try {
       let inputType = 'name';
-      let detailedSearchTerm = searchTerm;
       
       // Determine input type and improve search term
       if (searchTerm.match(/^https?:\/\//i)) {
@@ -294,13 +298,8 @@ export class FirecrawlService {
         try {
           const url = new URL(searchTerm);
           const productId = extractProductIdFromUrl(url.toString());
-          const productName = extractProductNameFromUrl(searchTerm);
           
-          if (productId || productName) {
-            console.log(`Enhanced search using extracted identifiers: ID=${productId}, Name=${productName}`);
-            // We'll still use the URL but enrich the request with extracted info
-            detailedSearchTerm = searchTerm;
-          }
+          console.log(`Enhanced search using extracted identifiers: ID=${productId}`);
         } catch (e) {
           console.error("URL parsing error:", e);
         }
@@ -308,14 +307,14 @@ export class FirecrawlService {
         inputType = 'barcode';
       }
       
-      console.log(`Starting crawl with input type '${inputType}' for: ${detailedSearchTerm}`);
+      console.log(`Starting crawl with input type '${inputType}' for: ${searchTerm}`);
       
       // Remove any caching to ensure fresh results
       CacheManager.clear();
       
       const { data, error } = await supabase.functions.invoke('scrape-prices', {
         body: {
-          query: detailedSearchTerm,
+          query: searchTerm,
           type: inputType,
           action: 'enhanced_extraction', // AI-enhanced extraction
           forceSearch: true, // Force a new search
@@ -335,8 +334,8 @@ export class FirecrawlService {
       
       // Generate mock data if the response doesn't contain any results
       if (!data.success || !data.data || data.data.length === 0) {
-        console.log("No results found, generating fallback data for:", detailedSearchTerm);
-        const fallbackData = generateFallbackData(detailedSearchTerm);
+        console.log("No results found, generating fallback data for:", searchTerm);
+        const fallbackData = generateFallbackData(searchTerm);
         
         // Cache the fallback data
         CacheManager.set(cacheKey, fallbackData);
@@ -440,7 +439,6 @@ function extractProductIdFromUrl(url: string): string | null {
 function generateContextualResponse(query: string): string {
   query = query.toLowerCase();
   
-  // Shopping-related queries
   if (query.includes('price') || query.includes('cost') || query.includes('how much')) {
     return "I can help you find pricing information. Try using our search tool at the top of the page with a specific product name or URL to compare prices across multiple retailers. For the most accurate and up-to-date prices, I recommend searching for the exact product model you're interested in.";
   }
