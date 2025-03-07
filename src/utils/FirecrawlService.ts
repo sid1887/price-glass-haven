@@ -375,11 +375,11 @@ export class FirecrawlService {
         data.data = data.data.map(store => {
           // Fix URLs that might be using the wrong search terms
           if (store.url && (store.url.includes('ref%3Dsr') || store.url.includes('XQN2B4'))) {
-            const searchTerm = data.productInfo && data.productInfo.name 
+            const productSearchTerm = data.productInfo && data.productInfo.name 
               ? data.productInfo.name 
               : inputType === 'url' ? extractBetterProductNameFromUrl(searchTerm) : searchTerm;
               
-            store.url = getStoreSearchUrl(store.store, searchTerm);
+            store.url = getStoreSearchUrl(store.store, productSearchTerm);
           }
           return store;
         });
