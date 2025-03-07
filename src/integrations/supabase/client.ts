@@ -10,3 +10,14 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 // import { supabase } from "@/integrations/supabase/client";
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+// Set API version for all international currency conversion endpoints
+export const API_VERSION = "2023-05-31";
+
+// Add a shared function to extract content without model suffix
+export function cleanProductName(name: string): string {
+  // Remove model information (like ers-360) from product name
+  return name.replace(/\b([a-z]+-\d{3,4})\b/gi, '')
+            .replace(/\s{2,}/g, ' ')  // Replace multiple spaces with a single space
+            .trim();
+}

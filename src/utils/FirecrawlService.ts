@@ -1,5 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
+import { cleanProductName } from "@/integrations/supabase/client";
+import { convertPrice } from "@/utils/currencyUtils";
 
 interface ErrorResponse {
   success: false;
@@ -42,11 +44,6 @@ interface CrawlStatusResponse {
   expiresAt: string;
   data: StorePrice[];
   productInfo?: ProductInfo;
-}
-
-interface ChatResponse {
-  success: boolean;
-  message: string;
 }
 
 type CrawlResponse = CrawlStatusResponse | ErrorResponse;
@@ -178,7 +175,7 @@ export class FirecrawlService {
     }
   }
 
-  static async askGeminiAI(message: string, previousMessages: {role: string, content: string}[] = []): Promise<ChatResponse> {
+  static async askGeminiAI(message: string, previousMessages: {role: string, content: string}[] = []): Promise<any> {
     try {
       console.log("Sending chat request to Gemini AI:", message);
       console.log("Chat context from previous messages:", previousMessages);
@@ -285,7 +282,7 @@ export class FirecrawlService {
     
     if (cachedData) {
       console.log("Using cached crawl data:", searchTerm);
-      return cachedData;
+      return processResultWithCurrency(cachedData);
     }
     
     try {
@@ -338,7 +335,14 @@ export class FirecrawlService {
       CacheManager.clear();
       
       // If we extracted product details from URL, use that for search
-      const searchQuery = extractedProduct?.name || searchTerm;
+      // Clean product name to remove model suffixes like ers-360
+      let searchQuery = extractedProduct?.name || searchTerm;
+      
+      // Clean product name to remove model suffix (e.g., ers-360)
+      if (inputType === 'url' && searchQuery) {
+        searchQuery = cleanProductName(searchQuery);
+      }
+      
       console.log(`Using search query: ${searchQuery}`);
       
       const { data, error } = await supabase.functions.invoke('scrape-prices', {
@@ -371,7 +375,7 @@ export class FirecrawlService {
         // Cache the fallback data
         CacheManager.set(cacheKey, fallbackData);
         
-        return fallbackData;
+        return processResultWithCurrency(fallbackData);
       }
       
       // Enhance product info if needed
@@ -381,6 +385,20 @@ export class FirecrawlService {
           data.productInfo.brand = extractedProduct.brand || data.productInfo.brand;
           data.productInfo.model = extractedProduct.model || data.productInfo.model;
           data.productInfo.category = extractedProduct.category || data.productInfo.category;
+        }
+      }
+      
+      // Clean the product name in the productInfo
+      if (data.productInfo && data.productInfo.name) {
+        // Store the original model
+        const model = data.productInfo.model;
+        
+        // Clean the product name
+        data.productInfo.name = cleanProductName(data.productInfo.name);
+        
+        // Ensure model remains
+        if (!data.productInfo.model && model) {
+          data.productInfo.model = model;
         }
       }
       
@@ -398,7 +416,7 @@ export class FirecrawlService {
       // Cache the result
       CacheManager.set(cacheKey, data);
       
-      return data;
+      return processResultWithCurrency(data);
     } catch (error) {
       console.error("Error during crawl:", error);
       
@@ -409,9 +427,37 @@ export class FirecrawlService {
       // Cache the fallback data
       CacheManager.set(cacheKey, fallbackData);
       
-      return fallbackData;
+      return processResultWithCurrency(fallbackData);
     }
   }
+}
+
+// Process the result with the selected currency
+function processResultWithCurrency(result: CrawlStatusResponse): CrawlStatusResponse {
+  if (!result.success) return result as any;
+  
+  // Get current country's currency code from localStorage
+  const countryCode = localStorage.getItem('selectedCountry') || 'IN';
+  const currency = window.COUNTRIES?.find((c: any) => c.code === countryCode)?.currency?.code || 'INR';
+  
+  // Convert all prices to the target currency
+  if (result.data) {
+    result.data = result.data.map(store => {
+      return {
+        ...store,
+        price: convertPrice(store.price, currency)
+      };
+    });
+    
+    // Re-sort by the converted prices
+    result.data.sort((a, b) => {
+      const priceA = parseFloat(a.price.replace(/[^0-9.]/g, ''));
+      const priceB = parseFloat(b.price.replace(/[^0-9.]/g, ''));
+      return priceA - priceB;
+    });
+  }
+  
+  return result;
 }
 
 // Check if a store URL is valid and specific
@@ -844,6 +890,9 @@ function generateFallbackData(searchTerm: string, extractedProduct?: ProductInfo
       console.error("Error parsing URL for fallback data:", e);
     }
   }
+  
+  // Clean the product name
+  productName = cleanProductName(productName);
   
   // Create realistic store data based on Indian e-commerce sites
   const stores = ['Amazon', 'Flipkart', 'Croma', 'Reliance Digital', 'Vijay Sales', 'Tata CLiQ'];

@@ -2,9 +2,19 @@
 import { CrawlForm } from "@/components/CrawlForm";
 import { ChatSupport } from "@/components/ChatSupport";
 import { Button } from "@/components/ui/button";
+import { CountrySelector } from "@/components/CountrySelector";
 import { BarChart3, Globe, Search, Zap, Sparkles, ArrowRight, Music, Flame, Star, Scan } from "lucide-react";
+import { useEffect } from "react";
 
 const Index = () => {
+  // Initialize the global countries array for use across the app
+  useEffect(() => {
+    // This is a simplified approach - in a larger app we would use context
+    import('@/components/CountrySelector').then(module => {
+      window.COUNTRIES = module.COUNTRIES;
+    });
+  }, []);
+
   return (
     <div className="min-h-screen w-full bg-background text-foreground overflow-x-hidden relative">
       {/* Noise texture overlay */}
@@ -17,6 +27,11 @@ const Index = () => {
             <div className="absolute inset-0 animate-glow blur-md opacity-70"></div>
           </div>
           <h1 className="text-2xl font-bold text-gradient">CumPair</h1>
+        </div>
+        
+        {/* Add Country Selector here */}
+        <div className="flex items-center gap-4">
+          <CountrySelector />
         </div>
       </div>
       
@@ -67,7 +82,7 @@ const Index = () => {
               {
                 icon: <Globe className="w-8 h-8" />,
                 title: "Global Coverage",
-                description: "Compare prices from stores worldwide",
+                description: "Compare prices from stores worldwide in your local currency",
                 color: "from-green-500/20 to-emerald-600/20"
               }
             ].map((feature, index) => (
