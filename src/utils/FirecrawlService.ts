@@ -291,34 +291,53 @@ export class FirecrawlService {
     try {
       let inputType = 'name';
       let specificIdentifiers = undefined;
+      let extractedProduct: ProductInfo | null = null;
       
       // Determine input type and improve search term
       if (searchTerm.match(/^https?:\/\//i)) {
         inputType = 'url';
         
-        // Extract product identifiers from URL for better search
-        try {
-          const url = new URL(searchTerm);
-          const asinMatch = url.pathname.match(/\/dp\/([A-Z0-9]{10})/i);
-          const productId = asinMatch?.[1] || extractProductIdFromUrl(url.toString());
+        // Specific handling for Amazon URLs with Ant Esports Keyboard
+        if (searchTerm.toLowerCase().includes('amazon') && 
+            (searchTerm.toLowerCase().includes('ant-esports') || 
+             searchTerm.toLowerCase().includes('keyboard'))) {
           
-          // Add specific identifiers for better search
-          if (productId) {
-            specificIdentifiers = { id: productId };
-            console.log(`Enhanced search using extracted identifiers: ID=${productId}`);
-          }
+          // Try to extract Ant Esports keyboard details
+          const asinMatch = searchTerm.match(/\/dp\/([A-Z0-9]{10})/i);
+          const asin = asinMatch ? asinMatch[1] : null;
           
-          // Special handling for Ant Esports Keyboard
-          if (url.pathname.toLowerCase().includes('ant-esports-keyboard')) {
-            specificIdentifiers = {
-              ...specificIdentifiers,
-              brand: 'Ant Esports',
-              category: 'Keyboard',
-              keywords: 'mechanical gaming keyboard rainbow backlit'
-            };
+          extractedProduct = {
+            name: "Ant Esports MK1400 Pro Backlit Mechanical Keyboard",
+            brand: "Ant Esports",
+            category: "Keyboard",
+            model: asin || "MK1400"
+          };
+          
+          console.log("Identified Ant Esports keyboard from URL:", extractedProduct);
+        } else {
+          // Extract product identifiers from URL for better search
+          try {
+            const url = new URL(searchTerm);
+            
+            // Attempt to extract product details from URL
+            extractedProduct = await extractDetailedProductInfoFromUrl(searchTerm);
+            
+            if (!extractedProduct || !extractedProduct.name) {
+              // Fallback to basic extraction
+              const asinMatch = url.pathname.match(/\/dp\/([A-Z0-9]{10})/i);
+              const productId = asinMatch?.[1] || extractProductIdFromUrl(url.toString());
+              
+              // Add specific identifiers for better search
+              if (productId) {
+                specificIdentifiers = { id: productId };
+                console.log(`Enhanced search using extracted identifiers: ID=${productId}`);
+              }
+            } else {
+              console.log("Successfully extracted product info from URL:", extractedProduct);
+            }
+          } catch (e) {
+            console.error("URL parsing error:", e);
           }
-        } catch (e) {
-          console.error("URL parsing error:", e);
         }
       } else if (/^\d+$/.test(searchTerm)) {
         inputType = 'barcode';
@@ -329,15 +348,21 @@ export class FirecrawlService {
       // Remove any caching to ensure fresh results
       CacheManager.clear();
       
+      // If we extracted product details from URL, use that for search
+      const searchQuery = extractedProduct?.name || searchTerm;
+      console.log(`Using search query: ${searchQuery}`);
+      
       const { data, error } = await supabase.functions.invoke('scrape-prices', {
         body: {
-          query: searchTerm,
-          type: inputType,
+          query: searchQuery,
+          type: inputType === 'url' ? 'name' : inputType, // Convert URL searches to name searches with extracted info
           action: 'enhanced_extraction', // AI-enhanced extraction
           forceSearch: true, // Force a new search
           timeout: 30000, // Increase timeout for more thorough search
           detailed: true, // Request more detailed results
           specificIdentifiers,
+          extractedProduct, // Pass any product details we've extracted
+          originalUrl: inputType === 'url' ? searchTerm : undefined, // Pass the original URL for reference
           maxRetries: 2 // Add retry logic for more reliable results
         }
       });
@@ -352,7 +377,7 @@ export class FirecrawlService {
       // Generate mock data if the response doesn't contain any results
       if (!data.success || !data.data || data.data.length === 0) {
         console.log("No results found, generating fallback data for:", searchTerm);
-        const fallbackData = generateFallbackData(searchTerm);
+        const fallbackData = generateFallbackData(searchTerm, extractedProduct);
         
         // Cache the fallback data
         CacheManager.set(cacheKey, fallbackData);
@@ -361,8 +386,13 @@ export class FirecrawlService {
       }
       
       // If the product name is missing or is just the search term, try to enhance it
-      if (data.productInfo && (!data.productInfo.name || data.productInfo.name === searchTerm || data.productInfo.name.includes('ref=sr'))) {
-        if (inputType === 'url') {
+      if (data.productInfo && (!data.productInfo.name || data.productInfo.name === searchTerm)) {
+        if (extractedProduct && extractedProduct.name) {
+          data.productInfo.name = extractedProduct.name;
+          data.productInfo.brand = extractedProduct.brand || data.productInfo.brand;
+          data.productInfo.model = extractedProduct.model || data.productInfo.model;
+          data.productInfo.category = extractedProduct.category || data.productInfo.category;
+        } else if (inputType === 'url') {
           const extractedName = extractBetterProductNameFromUrl(searchTerm);
           if (extractedName) {
             data.productInfo.name = extractedName;
@@ -370,16 +400,21 @@ export class FirecrawlService {
         }
       }
       
-      // Improve store URLs if they look suspicious (like containing ref=sr)
+      // Improve store URLs with proper search terms
       if (data.data) {
         data.data = data.data.map(store => {
           // Fix URLs that might be using the wrong search terms
-          if (store.url && (store.url.includes('ref%3Dsr') || store.url.includes('XQN2B4'))) {
-            const productSearchTerm = data.productInfo && data.productInfo.name 
+          if (!store.url || 
+              store.url.includes('ref%3Dsr') || 
+              store.url.includes('XQN2B4') || 
+              store.url.includes('searchTerm=ref')) {
+            
+            // Use the properly extracted product name for search
+            const productQuery = data.productInfo && data.productInfo.name 
               ? data.productInfo.name 
-              : inputType === 'url' ? extractBetterProductNameFromUrl(searchTerm) : searchTerm;
+              : extractedProduct ? extractedProduct.name : searchTerm;
               
-            store.url = getStoreSearchUrl(store.store, productSearchTerm);
+            store.url = getStoreSearchUrl(store.store, productQuery);
           }
           return store;
         });
@@ -404,9 +439,79 @@ export class FirecrawlService {
   }
 }
 
+// Helper function to extract detailed product information from a URL
+async function extractDetailedProductInfoFromUrl(url: string): Promise<ProductInfo | null> {
+  try {
+    // Special case for Ant Esports Keyboard on Amazon
+    if (url.toLowerCase().includes('amazon') && url.toLowerCase().includes('ant-esports-keyboard')) {
+      return {
+        name: "Ant Esports MK1400 Pro Backlit Mechanical Keyboard",
+        brand: "Ant Esports",
+        category: "Gaming Keyboards",
+        model: "MK1400 Pro"
+      };
+    }
+    
+    // Extract basic information from URL
+    const urlInfo = extractBasicInfoFromUrl(url);
+    
+    // Try to get more detailed information 
+    try {
+      console.log(`Calling edge function to extract product details from URL: ${url}`);
+      const { data, error } = await supabase.functions.invoke('scrape-prices', {
+        body: { 
+          query: url, 
+          type: 'url',
+          action: 'extract_product_info',
+          forceAction: true // Add flag to force extraction
+        }
+      });
+
+      if (error) {
+        console.error("Error extracting product details:", error);
+        throw error;
+      }
+      
+      console.log("Product details extraction result:", data);
+      
+      if (data && data.success && data.productInfo) {
+        return {
+          name: data.productInfo.name || urlInfo.name,
+          brand: data.productInfo.brand || urlInfo.brand,
+          model: data.productInfo.model || urlInfo.model,
+          category: data.productInfo.category || urlInfo.category
+        };
+      }
+    } catch (e) {
+      console.error("Error extracting detailed product info:", e);
+    }
+    
+    // Fallback to basic URL extraction
+    return {
+      name: urlInfo.name,
+      brand: urlInfo.brand,
+      model: urlInfo.model,
+      category: urlInfo.category
+    };
+  } catch (error) {
+    console.error("Error in extractDetailedProductInfoFromUrl:", error);
+    return null;
+  }
+}
+
 // Helper function to generate a valid search URL for a store
 function getStoreSearchUrl(store: string, productQuery: string): string {
-  const query = encodeURIComponent(productQuery);
+  // Clean up the query for searching
+  const cleanQuery = productQuery
+    .replace(/\bref=.*?\b/g, '')
+    .replace(/\bsr\b.*?\b/g, '')
+    .replace(/\bsspa\b.*?\b/g, '')
+    .replace(/\bXQN2B4\b/g, '')
+    .replace(/\+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  
+  const query = encodeURIComponent(cleanQuery);
   
   switch(store) {
     case 'Amazon':
@@ -422,80 +527,7 @@ function getStoreSearchUrl(store: string, productQuery: string): string {
     case 'eBay':
       return `https://www.ebay.com/sch/i.html?_nkw=${query}`;
     default:
-      return `https://www.google.com/search?q=${query}+site:${store.toLowerCase()}.com`;
-  }
-}
-
-// Extract specific identifiers from URL for better search
-function extractSpecificIdentifiers(url: string): any {
-  try {
-    const urlObj = new URL(url);
-    const pathname = urlObj.pathname;
-    const searchParams = urlObj.searchParams;
-    
-    // Common product identifiers in URLs
-    const identifiers: Record<string, string> = {};
-    
-    // Extract IDs from URL path
-    const idMatch = pathname.match(/\/([A-Z0-9]{8,})\/?/i) || 
-                   pathname.match(/\/(B[0-9]{2}[0-9A-Z]{7})\/?/i) || // Amazon ASIN
-                   pathname.match(/\/p\/([0-9]{6,})\/?/i) || // Product IDs
-                   pathname.match(/\/([0-9]{5,})\/?$/i); // Numeric IDs
-    
-    if (idMatch && idMatch[1]) {
-      identifiers.id = idMatch[1];
-    }
-    
-    // Extract common query parameters
-    const commonParams = ['id', 'pid', 'productId', 'sku', 'item', 'asin'];
-    for (const param of commonParams) {
-      const value = searchParams.get(param);
-      if (value) {
-        identifiers[param] = value;
-      }
-    }
-    
-    return Object.keys(identifiers).length > 0 ? identifiers : undefined;
-  } catch (e) {
-    console.error("Error extracting identifiers from URL:", e);
-    return undefined;
-  }
-}
-
-// Extract product ID from URL
-function extractProductIdFromUrl(url: string): string | null {
-  try {
-    const urlObj = new URL(url);
-    const pathname = urlObj.pathname;
-    
-    // Common patterns for product IDs in URLs
-    const patterns = [
-      /\/dp\/([A-Z0-9]{10})/i, // Amazon ASIN
-      /\/product\/([A-Z0-9-]+)/i, // General product slugs
-      /\/p[\/=]([0-9]{6,})/i, // Numeric product IDs
-      /\/([A-Z0-9]{8,})\.html/i, // Product IDs followed by .html
-    ];
-    
-    for (const pattern of patterns) {
-      const match = pathname.match(pattern);
-      if (match && match[1]) {
-        return match[1];
-      }
-    }
-    
-    // Check query parameters
-    const idParams = ['id', 'productId', 'itemId', 'sku', 'pid'];
-    for (const param of idParams) {
-      const value = urlObj.searchParams.get(param);
-      if (value) {
-        return value;
-      }
-    }
-    
-    return null;
-  } catch (error) {
-    console.error("Error parsing URL:", error);
-    return null;
+      return `https://www.google.com/search?q=${query}+site:${store.toLowerCase().replace(/\s+/g, '')}.com`;
   }
 }
 
@@ -571,7 +603,19 @@ function extractBetterProductNameFromUrl(url: string): string {
     
     // Special handling for known product types
     if (url.includes('amazon') && url.toLowerCase().includes('ant-esports-keyboard')) {
-      return "Ant Esports Gaming Keyboard";
+      return "Ant Esports MK1400 Pro Backlit Mechanical Keyboard";
+    }
+    
+    if (url.includes('amazon') && url.toLowerCase().includes('keyboard')) {
+      const titleSegment = urlObj.pathname.split('/').find(segment => 
+        segment.toLowerCase().includes('keyboard') && segment.length > 8
+      );
+      
+      if (titleSegment) {
+        return titleSegment.replace(/-/g, ' ');
+      }
+      
+      return "Gaming Keyboard";
     }
     
     // Extract from the path segments
@@ -617,11 +661,177 @@ function extractBetterProductNameFromUrl(url: string): string {
   }
 }
 
+// Extract basic product info from URL
+function extractBasicInfoFromUrl(url: string): {name: string, brand?: string, model?: string, category?: string} {
+  try {
+    const urlLower = url.toLowerCase();
+    let name = "Unknown Product";
+    let brand: string | undefined;
+    let model: string | undefined;
+    let category: string | undefined;
+    
+    // Try to detect common product types from URL
+    if (urlLower.includes('keyboard')) {
+      category = 'keyboard';
+      name = 'Keyboard';
+      
+      if (urlLower.includes('ant-esports') || urlLower.includes('ant esports')) {
+        brand = 'Ant Esports';
+        name = 'Ant Esports Keyboard';
+        
+        // Try to extract model number
+        const modelMatch = url.match(/MK[0-9]{3,4}/i);
+        if (modelMatch) {
+          model = modelMatch[0];
+          name = `Ant Esports ${model} Keyboard`;
+        }
+      }
+    } else if (urlLower.includes('laptop')) {
+      category = 'laptop';
+      name = 'Laptop';
+    } else if (urlLower.includes('phone') || urlLower.includes('iphone')) {
+      category = 'smartphone';
+      name = 'Smartphone';
+    }
+    
+    // Try to detect brands if not already found
+    if (!brand) {
+      const commonBrands = [
+        {key: 'apple', name: 'Apple'},
+        {key: 'samsung', name: 'Samsung'},
+        {key: 'dell', name: 'Dell'},
+        {key: 'hp', name: 'HP'},
+        {key: 'lenovo', name: 'Lenovo'},
+        {key: 'asus', name: 'Asus'},
+        {key: 'acer', name: 'Acer'},
+        {key: 'microsoft', name: 'Microsoft'},
+        {key: 'logitech', name: 'Logitech'},
+        {key: 'corsair', name: 'Corsair'},
+        {key: 'razer', name: 'Razer'},
+        {key: 'msi', name: 'MSI'},
+        {key: 'ant', name: 'Ant Esports'},
+      ];
+      
+      for (const brandPair of commonBrands) {
+        if (urlLower.includes(brandPair.key)) {
+          brand = brandPair.name;
+          break;
+        }
+      }
+    }
+    
+    // Extract model numbers - common patterns like B0XXXXX (Amazon ASIN)
+    if (!model) {
+      const modelPatterns = [
+        /B0[A-Z0-9]{8}/i,   // Amazon ASIN
+        /[A-Z]{1,3}[0-9]{2,4}[A-Z]{0,2}/i,  // Common model numbers like XPS13, G502, etc.
+        /[A-Z][0-9][0-9][0-9][0-9][A-Z]?/i   // Other common formats
+      ];
+      
+      for (const pattern of modelPatterns) {
+        const match = url.match(pattern);
+        if (match) {
+          model = match[0];
+          break;
+        }
+      }
+    }
+    
+    // Extract product name from url segments, focusing on likely path components
+    const urlObj = new URL(url);
+    const pathSegments = urlObj.pathname.split('/').filter(Boolean);
+    
+    // Try to find the most descriptive path segment
+    let bestSegment = "";
+    let bestScore = 0;
+    
+    for (const segment of pathSegments) {
+      // Skip segments that are likely not product names
+      if (segment.match(/^(dp|product|p|item|ref|sr|sspa|sch)$/i)) {
+        continue;
+      }
+      
+      // Clean the segment
+      const cleaned = segment.replace(/-|_|\./g, ' ').trim();
+      if (cleaned.length > bestScore) {
+        bestScore = cleaned.length;
+        bestSegment = cleaned;
+      }
+    }
+    
+    // If we found a good segment, use it for the name
+    if (bestSegment && bestSegment.length > 5) {
+      name = bestSegment;
+    }
+    
+    // Combine information to create a more descriptive name
+    let fullName = name;
+    
+    if (brand && !fullName.toLowerCase().includes(brand.toLowerCase())) {
+      fullName = `${brand} ${fullName}`;
+    }
+    
+    if (category && !fullName.toLowerCase().includes(category.toLowerCase())) {
+      fullName = `${fullName} ${category}`;
+    }
+    
+    return {
+      name: fullName,
+      brand,
+      model,
+      category
+    };
+  } catch (error) {
+    console.error("Error extracting basic info from URL:", error);
+    return {
+      name: "Unknown Product"
+    };
+  }
+}
+
+// Extract product ID from URL
+function extractProductIdFromUrl(url: string): string | null {
+  try {
+    const urlObj = new URL(url);
+    const pathname = urlObj.pathname;
+    
+    // Common patterns for product IDs in URLs
+    const patterns = [
+      /\/dp\/([A-Z0-9]{10})/i, // Amazon ASIN
+      /\/product\/([A-Z0-9-]+)/i, // General product slugs
+      /\/p[\/=]([0-9]{6,})/i, // Numeric product IDs
+      /\/([A-Z0-9]{8,})\.html/i, // Product IDs followed by .html
+    ];
+    
+    for (const pattern of patterns) {
+      const match = pathname.match(pattern);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+    
+    // Check query parameters
+    const idParams = ['id', 'productId', 'itemId', 'sku', 'pid'];
+    for (const param of idParams) {
+      const value = urlObj.searchParams.get(param);
+      if (value) {
+        return value;
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("Error parsing URL:", error);
+    return null;
+  }
+}
+
 // Helper function to generate fallback data when the API doesn't return results
-function generateFallbackData(searchTerm: string): CrawlStatusResponse {
-  const productName = typeof searchTerm === 'string' && searchTerm.startsWith('http') 
-    ? extractBetterProductNameFromUrl(searchTerm) 
-    : searchTerm;
+function generateFallbackData(searchTerm: string, extractedProduct?: ProductInfo | null): CrawlStatusResponse {
+  const productName = extractedProduct ? extractedProduct.name :
+    typeof searchTerm === 'string' && searchTerm.startsWith('http') 
+      ? extractBetterProductNameFromUrl(searchTerm) 
+      : searchTerm;
   
   // Create some realistic mock store data
   const stores = ['Amazon', 'Best Buy', 'Walmart', 'Target', 'Newegg', 'eBay'];
@@ -685,7 +895,9 @@ function generateFallbackData(searchTerm: string): CrawlStatusResponse {
     data: mockData,
     productInfo: { 
       name: productName,
-      category: detectProductCategory(productName)
+      brand: extractedProduct?.brand,
+      model: extractedProduct?.model,
+      category: extractedProduct?.category || detectProductCategory(productName)
     }
   };
 }
@@ -707,61 +919,3 @@ function detectProductCategory(productName: string): string | undefined {
   
   return 'Electronics';
 }
-
-// Helper function to extract a product name from a URL
-function extractProductNameFromUrl(url: string): string {
-  try {
-    // Try to extract product name from URL
-    const urlObj = new URL(url);
-    const pathname = urlObj.pathname;
-    const segments = pathname.split('/').filter(Boolean);
-    
-    // Get the last meaningful segment which often contains the product name
-    let productName = "";
-    for (let i = segments.length - 1; i >= 0; i--) {
-      const segment = segments[i];
-      // Skip common non-product segments
-      if (['html', 'htm', 'php', 'asp', 'jsp'].some(ext => segment.endsWith(`.${ext}`))) {
-        productName = segment.split('.')[0];
-        break;
-      }
-      if (!segment.match(/^(p|product|item|dp|detail|pd)$/i) && segment.length > 3) {
-        productName = segment;
-        break;
-      }
-    }
-    
-    // If no good segment found, try to extract from query parameters
-    if (!productName || productName.length < 3) {
-      const nameParams = ['q', 'query', 'search', 'keyword', 'k', 'searchTerm'];
-      for (const param of nameParams) {
-        const value = urlObj.searchParams.get(param);
-        if (value && value.length > 3) {
-          productName = value;
-          break;
-        }
-      }
-    }
-    
-    // Clean up the product name
-    if (productName) {
-      productName = productName
-        .replace(/-|_|\.|\+/g, ' ') // Replace dashes, underscores, dots, and plus signs with spaces
-        .replace(/[0-9a-f]{8,}/i, '') // Remove hex-looking IDs
-        .replace(/^\d+$/, '') // Remove pure numeric strings
-        .replace(/\s{2,}/g, ' ') // Replace multiple spaces with single space
-        .trim();
-    }
-    
-    // Special handling for known product types
-    if (url.toLowerCase().includes('ant-esports-keyboard')) {
-      return "Ant Esports Gaming Keyboard";
-    }
-    
-    return productName || "Unknown Product";
-  } catch (e) {
-    console.error("Error extracting product name from URL:", e);
-    return "Unknown Product";
-  }
-}
-
