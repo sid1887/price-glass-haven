@@ -1,7 +1,3 @@
-
-// This is a partial update focusing on the handleSubmit method in CrawlForm.tsx
-// We're only changing a portion of this large file
-
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
@@ -22,11 +18,13 @@ import {
   ThumbsUp, 
   BadgePercent, 
   AlertCircle,
-  BarChart 
+  BarChart,
+  Info
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { HistoryList, HistoryItem } from "./HistoryList";
 import { v4 as uuidv4 } from 'uuid';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface StorePrice {
   store: string;
@@ -70,12 +68,18 @@ export const CrawlForm = () => {
   const [aiStatus, setAiStatus] = useState<string>("");
   const [searchAttempts, setSearchAttempts] = useState(0);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<string>("name");
+  const [activeTab, setActiveTab] = useState<string>("url");
   const [enhancedRatings, setEnhancedRatings] = useState<{
     min: number;
     max: number;
     avg: number;
     confidence: number;
+  } | null>(null);
+  const [productInfo, setProductInfo] = useState<{
+    name?: string;
+    brand?: string;
+    model?: string;
+    category?: string;
   } | null>(null);
 
   // Load the most recent search when component mounts
@@ -112,6 +116,7 @@ export const CrawlForm = () => {
     setBestDeal(null);
     setSearchError(null);
     setEnhancedRatings(null);
+    setProductInfo(null);
     setAiStatus("Starting AI-powered search...");
     setSearchAttempts(prev => prev + 1);
 
@@ -133,14 +138,14 @@ export const CrawlForm = () => {
       // Different status messages based on search type
       const statusMessages = searchType === 'url' 
         ? [
-            "Analyzing URL with Gemini AI...",
+            "Analyzing URL with AI...",
             "Extracting product information...",
             "Searching for best prices across stores...",
             "Comparing prices and discounts...",
             "Finding the best deals for you..."
           ]
         : [
-            "Analyzing search term with Gemini AI...",
+            "Analyzing search term with AI...",
             "Searching across multiple stores...",
             "Comparing prices and discounts...",
             "Analyzing vendor ratings...",
@@ -150,8 +155,8 @@ export const CrawlForm = () => {
       let messageIndex = 0;
       const progressInterval = setInterval(() => {
         setProgress(prev => {
-          const newProgress = Math.min(prev + 10, 90);
-          if (newProgress % 20 === 0 && messageIndex < statusMessages.length) {
+          const newProgress = Math.min(prev + 5, 90);
+          if (newProgress % 15 === 0 && messageIndex < statusMessages.length) {
             setAiStatus(statusMessages[messageIndex]);
             messageIndex++;
           }
@@ -176,7 +181,9 @@ export const CrawlForm = () => {
         setCrawlResult(result);
         
         // If we got product info from URL extraction, display a toast
-        if (searchType === 'url' && result.productInfo && result.productInfo.name) {
+        if (result.productInfo && result.productInfo.name) {
+          setProductInfo(result.productInfo);
+          
           toast({
             title: "Product Identified",
             description: `Searching for: ${result.productInfo.name}`,
@@ -197,7 +204,7 @@ export const CrawlForm = () => {
           calculateEnhancedRatings(result.data);
           
           // Save to history
-          saveToHistory(searchTerm, searchType, sortedData[0]);
+          saveToHistory(searchTerm, searchType, sortedData[0], result.productInfo?.name);
         } else {
           setSearchError("No results found for your search. Try a more specific product name or URL.");
         }
@@ -263,7 +270,7 @@ export const CrawlForm = () => {
     }
   };
 
-  const saveToHistory = (query: string, type: 'url' | 'name' | 'barcode', bestPrice?: StorePrice) => {
+  const saveToHistory = (query: string, type: 'url' | 'name' | 'barcode', bestPrice?: StorePrice, productName?: string) => {
     try {
       // Create history item
       const historyItem: HistoryItem = {
@@ -271,6 +278,7 @@ export const CrawlForm = () => {
         timestamp: Date.now(),
         query,
         type,
+        productName,
         bestPrice: bestPrice ? {
           store: bestPrice.store,
           price: bestPrice.price,
@@ -327,25 +335,34 @@ export const CrawlForm = () => {
     handleSubmit(e, item.type);
   };
 
-  // Helper function to generate a valid search URL for a store
-  const getStoreSearchUrl = (store: string, productQuery: string): string => {
-    const query = encodeURIComponent(productQuery);
+  // Helper function to get store URL or generate a search URL if not available
+  const getStoreURL = (store: StorePrice, defaultQuery: string) => {
+    // Use the store's URL if it exists and appears valid
+    if (store.url && store.url.includes('http') && !store.url.includes('undefined')) {
+      return store.url;
+    }
     
-    switch(store) {
-      case 'Amazon':
+    // Generate a search URL using the product name or original query
+    const searchQuery = productInfo?.name || defaultQuery;
+    const storeName = store.store;
+    
+    // Clean up the query for searching
+    const cleanQuery = searchQuery.replace(/[^\w\s]/gi, ' ').trim();
+    const query = encodeURIComponent(cleanQuery);
+    
+    switch(storeName.toLowerCase()) {
+      case 'amazon':
         return `https://www.amazon.com/s?k=${query}`;
-      case 'Best Buy':
-        return `https://www.bestbuy.com/site/searchpage.jsp?st=${query}`;
-      case 'Walmart':
-        return `https://www.walmart.com/search?q=${query}`;
-      case 'Target':
-        return `https://www.target.com/s?searchTerm=${query}`;
-      case 'Newegg':
-        return `https://www.newegg.com/p/pl?d=${query}`;
-      case 'eBay':
-        return `https://www.ebay.com/sch/i.html?_nkw=${query}`;
+      case 'flipkart':
+        return `https://www.flipkart.com/search?q=${query}`;
+      case 'croma':
+        return `https://www.croma.com/searchB?q=${query}`;
+      case 'reliance digital':
+        return `https://www.reliancedigital.in/search?q=${query}`;
+      case 'tata cliq':
+        return `https://www.tatacliq.com/search/?searchCategory=all&text=${query}`;
       default:
-        return `https://www.google.com/search?q=${query}+site:${store.toLowerCase()}.com`;
+        return `https://www.google.com/search?q=${query}+${storeName}`;
     }
   };
 
@@ -381,7 +398,7 @@ export const CrawlForm = () => {
                 required
               />
               <p className="text-xs text-muted-foreground">
-                Enter the complete product URL from Amazon, Best Buy, Walmart, etc.
+                Enter the complete product URL from Amazon, Flipkart, or other e-commerce sites
               </p>
             </div>
 
@@ -491,6 +508,43 @@ export const CrawlForm = () => {
         </Card>
       )}
 
+      {productInfo && !isLoading && !searchError && (
+        <Card className="bg-muted/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center">
+              <Info className="w-4 h-4 mr-2 text-blue-500" />
+              Product Information
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Product:</span>
+                <span className="font-medium">{productInfo.name}</span>
+              </div>
+              {productInfo.brand && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Brand:</span>
+                  <span>{productInfo.brand}</span>
+                </div>
+              )}
+              {productInfo.model && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Model:</span>
+                  <span>{productInfo.model}</span>
+                </div>
+              )}
+              {productInfo.category && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Category:</span>
+                  <span>{productInfo.category}</span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {crawlResult && crawlResult.success && crawlResult.data && crawlResult.data.length > 0 && (
         <div className="space-y-6">
           {bestDeal && (
@@ -573,9 +627,8 @@ export const CrawlForm = () => {
                 <Button
                   variant="default"
                   onClick={() => {
-                    // Use the helper function to generate a valid search URL
-                    const searchUrl = bestDeal.url || getStoreSearchUrl(bestDeal.store, productName || url);
-                    window.open(searchUrl, '_blank');
+                    const storeURL = getStoreURL(bestDeal, productName || url);
+                    window.open(storeURL, '_blank');
                   }}
                   className="w-full mt-2"
                 >
@@ -656,18 +709,26 @@ export const CrawlForm = () => {
                         )}
                       </div>
                       
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          // Use the helper function to generate a valid search URL
-                          const searchUrl = item.url || getStoreSearchUrl(item.store, productName || url);
-                          window.open(searchUrl, '_blank');
-                        }}
-                        className="w-full mt-2"
-                      >
-                        <ExternalLink className="h-4 w-4 mr-2" />
-                        Visit Store
-                      </Button>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                const storeURL = getStoreURL(item, productName || url);
+                                window.open(storeURL, '_blank');
+                              }}
+                              className="w-full mt-2"
+                            >
+                              <ExternalLink className="h-4 w-4 mr-2" />
+                              Visit Store
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Open product page in a new tab</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
                   </div>
                 ))}
