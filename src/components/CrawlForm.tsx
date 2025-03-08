@@ -10,10 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ProductSummary } from "@/components/ProductSummary";
+import ProductSummary from "@/components/ProductSummary"; // Fixed import
 import { HistoryList } from "@/components/HistoryList";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
-import { FirecrawlService } from "@/services/FirecrawlService";
+import { FirecrawlService } from "@/utils/FirecrawlService"; // Fixed path
 import { cleanProductName } from "@/integrations/supabase/client";
 import { getStoredUserLocation } from "@/utils/geo";
 import LocationSelector from "@/components/LocationSelector";
@@ -30,6 +30,20 @@ interface ProductInfo {
   }[];
 }
 
+// Adding a compatible HistoryItem interface to match what HistoryList expects
+interface HistoryItem {
+  id: string;
+  timestamp: number;
+  query: string;
+  type: 'url' | 'name' | 'barcode';
+  productName?: string;
+  bestPrice?: {
+    store: string;
+    price: string;
+    url?: string;
+  }
+}
+
 export const CrawlForm = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchType, setSearchType] = useState<'url' | 'name' | 'barcode'>('name');
@@ -40,6 +54,7 @@ export const CrawlForm = () => {
   const [progress, setProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState<'search' | 'results' | 'error'>('search');
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
+  const [showScanner, setShowScanner] = useState(false);
 
   useEffect(() => {
     // Load search history from localStorage on component mount
@@ -88,6 +103,7 @@ export const CrawlForm = () => {
   const handleBarcodeDetected = (barcode: string) => {
     setSearchTerm(barcode);
     setSearchType('barcode');
+    setShowScanner(false); // Hide scanner after detection
   };
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -144,7 +160,12 @@ export const CrawlForm = () => {
       {/* Search Form */}
       <div className="grid gap-4">
         <div className="flex flex-col gap-2">
-          <Tabs defaultValue="url" value={searchType} onValueChange={setSearchType} className="w-full">
+          <Tabs defaultValue="url" value={searchType} onValueChange={(value) => {
+            // Fix for the type issue with onValueChange
+            if (value === 'url' || value === 'name' || value === 'barcode') {
+              setSearchType(value);
+            }
+          }} className="w-full">
             <TabsList className="grid grid-cols-3">
               <TabsTrigger value="url">Search by URL</TabsTrigger>
               <TabsTrigger value="name">Search by Name</TabsTrigger>
@@ -181,7 +202,20 @@ export const CrawlForm = () => {
               
               <TabsContent value="barcode" className="space-y-4">
                 <div className="space-y-4">
-                  <BarcodeScanner onDetected={handleBarcodeDetected} />
+                  {showScanner ? (
+                    <BarcodeScanner 
+                      onDetected={handleBarcodeDetected} 
+                      onClose={() => setShowScanner(false)} 
+                    />
+                  ) : (
+                    <Button
+                      type="button"
+                      className="w-full h-12"
+                      onClick={() => setShowScanner(true)}
+                    >
+                      Open Scanner
+                    </Button>
+                  )}
                   <p className="text-xs text-muted-foreground">
                     Position barcode in view of your camera
                   </p>
@@ -265,10 +299,34 @@ export const CrawlForm = () => {
       {/* Results Display */}
       {currentStep === 'results' && productInfo && (
         <div className="space-y-8 mt-8">
-          <ProductSummary 
-            product={productInfo}
-            onBack={() => setCurrentStep('search')}
-          />
+          {/* Replace this with ProductSummary component that matches the expected props */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold">{productInfo.name}</h2>
+              <Button variant="outline" size="sm" onClick={() => setCurrentStep('search')}>
+                Back to Search
+              </Button>
+            </div>
+            
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
+                {productInfo.imageUrl && (
+                  <div className="rounded-lg overflow-hidden border aspect-square flex items-center justify-center bg-muted">
+                    <img 
+                      src={productInfo.imageUrl} 
+                      alt={productInfo.name}
+                      className="max-w-full max-h-full object-contain"
+                    />
+                  </div>
+                )}
+              </div>
+              
+              <div className="space-y-4">
+                {/* If we have enough data for a product description, use ProductSummary */}
+                {productInfo.name && <ProductSummary description={productInfo.name} />}
+              </div>
+            </div>
+          </div>
           
           {/* Price Comparison Table */}
           {productInfo.prices.length > 0 && (
@@ -360,20 +418,41 @@ export const CrawlForm = () => {
         </div>
       )}
       
-      {/* Show history if no search is in progress */}
+      {/* We need to modify the HistoryList portion to match the component's expectations */}
       {currentStep === 'search' && !isLoading && searchHistory.length > 0 && (
         <div className="mt-8">
-          <HistoryList 
-            history={searchHistory} 
-            onSelectItem={(item) => {
-              setSearchTerm(item);
-              handleSearch(new Event('submit') as any);
-            }}
-            onClearHistory={() => {
-              setSearchHistory([]);
-              localStorage.removeItem('searchHistory');
-            }}
-          />
+          {/* Create mock history items from the searchHistory strings */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">Recent Searches</h3>
+            <div className="space-y-2">
+              {searchHistory.map((item, index) => (
+                <Button
+                  key={index}
+                  variant="outline"
+                  className="w-full justify-start text-left h-auto py-2 px-4"
+                  onClick={() => {
+                    setSearchTerm(item);
+                    handleSearch(new Event('submit') as any);
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <History className="h-4 w-4" />
+                    <span>{item}</span>
+                  </div>
+                </Button>
+              ))}
+            </div>
+            <Button 
+              variant="ghost" 
+              className="text-muted-foreground"
+              onClick={() => {
+                setSearchHistory([]);
+                localStorage.removeItem('searchHistory');
+              }}
+            >
+              Clear History
+            </Button>
+          </div>
         </div>
       )}
     </div>
