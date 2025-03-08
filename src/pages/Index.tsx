@@ -1,16 +1,8 @@
 
 import React from "react";
 import { CrawlForm } from "@/components/CrawlForm";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { Badge } from "@/components/ui/badge";
-import CountrySelector, { COUNTRIES } from "@/components/CountrySelector";
-import LocationSelector from "@/components/LocationSelector";
 import { Sparkles } from "lucide-react";
-
-// Set window.COUNTRIES for global access to the countries data
-if (typeof window !== 'undefined') {
-  window.COUNTRIES = COUNTRIES;
-}
 
 export default function Index() {
   return (
@@ -21,11 +13,6 @@ export default function Index() {
           <Badge variant="outline" className="gap-1 text-xs py-0">
             <Sparkles className="w-3 h-3" /> AI-Powered
           </Badge>
-        </div>
-        <div className="flex items-center gap-2">
-          <LocationSelector />
-          <CountrySelector />
-          <ThemeToggle />
         </div>
       </div>
       

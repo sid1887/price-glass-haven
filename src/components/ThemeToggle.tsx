@@ -20,10 +20,10 @@ export function ThemeToggle() {
 
   return (
     <Button
-      variant="ghost"
+      variant="outline"
       size="icon"
       onClick={toggleTheme}
-      className="fixed top-4 right-4 animate-fade-in"
+      className="hidden"
     >
       {theme === "light" ? (
         <Sun className="h-5 w-5 transition-all" />
