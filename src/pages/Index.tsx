@@ -1,7 +1,5 @@
-
 import React from "react";
 import { CrawlForm } from "@/components/CrawlForm";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { Badge } from "@/components/ui/badge";
 import CountrySelector, { COUNTRIES } from "@/components/CountrySelector";
 import LocationSelector from "@/components/LocationSelector";
@@ -25,7 +23,6 @@ export default function Index() {
         <div className="flex items-center gap-2">
           <LocationSelector />
           <CountrySelector />
-          <ThemeToggle />
         </div>
       </div>
       
