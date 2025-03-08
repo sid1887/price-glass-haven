@@ -1,7 +1,7 @@
+
 import React from "react";
 import { CrawlForm } from "@/components/CrawlForm";
 import { Badge } from "@/components/ui/badge";
-import CountrySelector, { COUNTRIES } from "@/components/CountrySelector";
 import LocationSelector from "@/components/LocationSelector";
 import { Sparkles } from "lucide-react";
 
@@ -22,7 +22,6 @@ export default function Index() {
         </div>
         <div className="flex items-center gap-2">
           <LocationSelector />
-          <CountrySelector />
         </div>
       </div>
       

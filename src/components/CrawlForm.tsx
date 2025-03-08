@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
@@ -89,7 +88,6 @@ export const CrawlForm = () => {
     city?: string;
   } | null>(null);
 
-  // Load the user's location when component mounts
   useEffect(() => {
     const location = getStoredUserLocation();
     if (location) {
@@ -100,18 +98,15 @@ export const CrawlForm = () => {
     }
   }, []);
 
-  // Load the most recent search when component mounts
   useEffect(() => {
     try {
       const savedHistory = localStorage.getItem('price_comparison_history');
       if (savedHistory) {
         const parsedHistory = JSON.parse(savedHistory) as HistoryItem[];
         if (parsedHistory.length > 0) {
-          // Sort by most recent first
           const sortedHistory = parsedHistory.sort((a, b) => b.timestamp - a.timestamp);
           const mostRecent = sortedHistory[0];
           
-          // Set the appropriate input field based on search type
           if (mostRecent.type === 'url') {
             setUrl(mostRecent.query);
             setActiveTab('url');
@@ -126,7 +121,6 @@ export const CrawlForm = () => {
     }
   }, []);
 
-  // Listen for location changes
   useEffect(() => {
     const handleLocationChange = () => {
       const location = getStoredUserLocation();
@@ -172,7 +166,6 @@ export const CrawlForm = () => {
       
       console.log(`Starting ${searchType} search for:`, searchTerm);
       
-      // Different status messages based on search type
       const statusMessages = searchType === 'url' 
         ? [
             "Analyzing URL with AI...",
@@ -204,7 +197,6 @@ export const CrawlForm = () => {
       
       console.log("Making API call to search for:", searchTerm);
       
-      // Get location info for more relevant search
       const locationData = getStoredUserLocation();
       const searchOptions = locationData ? {
         country: locationData.country,
@@ -225,7 +217,6 @@ export const CrawlForm = () => {
         });
         setCrawlResult(result);
         
-        // If we got product info from URL extraction, display a toast
         if (result.productInfo && result.productInfo.name) {
           setProductInfo(result.productInfo);
           
@@ -245,10 +236,8 @@ export const CrawlForm = () => {
           
           setBestDeal(sortedData[0]);
 
-          // Calculate enhanced ratings across similar products
           calculateEnhancedRatings(result.data);
           
-          // Save to history
           saveToHistory(searchTerm, searchType, sortedData[0], result.productInfo?.name);
         } else {
           setSearchError("No results found for your search. Try a more specific product name or URL.");
@@ -257,7 +246,6 @@ export const CrawlForm = () => {
         console.error("Search failed:", (result as ErrorResponse).error);
         setSearchError((result as ErrorResponse).error || "Failed to search");
         
-        // If it's the first attempt, try one more time
         if (searchAttempts <= 1) {
           toast({
             title: "Retrying search",
@@ -265,7 +253,6 @@ export const CrawlForm = () => {
             duration: 3000,
           });
           
-          // Retry with different parameters - wait a moment before retry
           setTimeout(() => {
             handleSubmit(e, searchType);
           }, 1000);
@@ -304,7 +291,7 @@ export const CrawlForm = () => {
       const max = Math.max(...ratings);
       const sum = ratings.reduce((acc, val) => acc + val, 0);
       const avg = sum / ratings.length;
-      const confidence = Math.min(1, ratings.length / 5) * 100; // Higher confidence with more ratings
+      const confidence = Math.min(1, ratings.length / 5) * 100;
       
       setEnhancedRatings({
         min,
@@ -317,7 +304,6 @@ export const CrawlForm = () => {
 
   const saveToHistory = (query: string, type: 'url' | 'name' | 'barcode', bestPrice?: StorePrice, productDisplayName?: string) => {
     try {
-      // Create history item
       const historyItem: HistoryItem = {
         id: uuidv4(),
         timestamp: Date.now(),
@@ -331,7 +317,6 @@ export const CrawlForm = () => {
         } : undefined
       };
       
-      // Get existing history
       const savedHistory = localStorage.getItem('price_comparison_history');
       let historyItems: HistoryItem[] = [];
       
@@ -339,13 +324,11 @@ export const CrawlForm = () => {
         historyItems = JSON.parse(savedHistory);
       }
       
-      // Add new item (limit to last 50 searches)
       historyItems.unshift(historyItem);
       if (historyItems.length > 50) {
         historyItems = historyItems.slice(0, 50);
       }
       
-      // Save back to localStorage
       localStorage.setItem('price_comparison_history', JSON.stringify(historyItems));
       
     } catch (error) {
@@ -366,7 +349,6 @@ export const CrawlForm = () => {
   };
 
   const handleHistoryItemSelect = (item: HistoryItem) => {
-    // Set the appropriate input field based on search type
     if (item.type === 'url') {
       setUrl(item.query);
       setActiveTab('url');
@@ -375,23 +357,18 @@ export const CrawlForm = () => {
       setActiveTab(item.type);
     }
     
-    // Trigger search
     const e = { preventDefault: () => {} } as React.FormEvent;
     handleSubmit(e, item.type);
   };
 
-  // Helper function to get store URL or generate a search URL if not available
   const getStoreURL = (store: StorePrice, defaultQuery: string) => {
-    // Use the store's URL if it exists and appears valid
     if (store.url && store.url.includes('http') && !store.url.includes('undefined')) {
       return store.url;
     }
     
-    // Generate a search URL using the product name or original query
     const searchQuery = productInfo?.name || defaultQuery;
     const storeName = store.store;
     
-    // Clean up the query for searching
     const cleanQuery = searchQuery.replace(/[^\w\s]/gi, ' ').trim();
     const query = encodeURIComponent(cleanQuery);
     
@@ -411,7 +388,6 @@ export const CrawlForm = () => {
     }
   };
 
-  // Show location badge if available
   const renderLocationBadge = () => {
     if (userLocation && (userLocation.country || userLocation.city)) {
       return (
@@ -447,7 +423,7 @@ export const CrawlForm = () => {
 
       {userLocation && renderLocationBadge()}
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'url' | 'name' | 'barcode')} className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="url">Search by URL</TabsTrigger>
           <TabsTrigger value="name">Search by Name</TabsTrigger>
