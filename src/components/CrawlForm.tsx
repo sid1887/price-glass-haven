@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
@@ -19,12 +20,14 @@ import {
   BadgePercent, 
   AlertCircle,
   BarChart,
-  Info
+  Info,
+  MapPin
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { HistoryList, HistoryItem } from "./HistoryList";
 import { v4 as uuidv4 } from 'uuid';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { getStoredUserLocation } from "@/utils/geo";
 
 interface StorePrice {
   store: string;
@@ -81,6 +84,21 @@ export const CrawlForm = () => {
     model?: string;
     category?: string;
   } | null>(null);
+  const [userLocation, setUserLocation] = useState<{
+    country?: string;
+    city?: string;
+  } | null>(null);
+
+  // Load the user's location when component mounts
+  useEffect(() => {
+    const location = getStoredUserLocation();
+    if (location) {
+      setUserLocation({
+        country: location.country,
+        city: location.city
+      });
+    }
+  }, []);
 
   // Load the most recent search when component mounts
   useEffect(() => {
@@ -106,6 +124,25 @@ export const CrawlForm = () => {
     } catch (error) {
       console.error("Error loading history:", error);
     }
+  }, []);
+
+  // Listen for location changes
+  useEffect(() => {
+    const handleLocationChange = () => {
+      const location = getStoredUserLocation();
+      if (location) {
+        setUserLocation({
+          country: location.country,
+          city: location.city
+        });
+      }
+    };
+
+    window.addEventListener('country-changed', handleLocationChange);
+    
+    return () => {
+      window.removeEventListener('country-changed', handleLocationChange);
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent, searchType: 'url' | 'name' | 'barcode') => {
@@ -166,7 +203,15 @@ export const CrawlForm = () => {
       }, 300);
       
       console.log("Making API call to search for:", searchTerm);
-      const result = await FirecrawlService.crawlWebsite(searchTerm);
+      
+      // Get location info for more relevant search
+      const locationData = getStoredUserLocation();
+      const searchOptions = locationData ? {
+        country: locationData.country,
+        city: locationData.city
+      } : undefined;
+      
+      const result = await FirecrawlService.crawlWebsite(searchTerm, searchOptions);
       
       clearInterval(progressInterval);
       setProgress(100);
@@ -270,7 +315,7 @@ export const CrawlForm = () => {
     }
   };
 
-  const saveToHistory = (query: string, type: 'url' | 'name' | 'barcode', bestPrice?: StorePrice, productName?: string) => {
+  const saveToHistory = (query: string, type: 'url' | 'name' | 'barcode', bestPrice?: StorePrice, productDisplayName?: string) => {
     try {
       // Create history item
       const historyItem: HistoryItem = {
@@ -278,7 +323,7 @@ export const CrawlForm = () => {
         timestamp: Date.now(),
         query,
         type,
-        productName,
+        productName: productDisplayName,
         bestPrice: bestPrice ? {
           store: bestPrice.store,
           price: bestPrice.price,
@@ -366,6 +411,29 @@ export const CrawlForm = () => {
     }
   };
 
+  // Show location badge if available
+  const renderLocationBadge = () => {
+    if (userLocation && (userLocation.country || userLocation.city)) {
+      return (
+        <Card className="bg-muted/40 mb-4">
+          <CardContent className="p-3">
+            <div className="flex items-center text-sm">
+              <MapPin className="h-4 w-4 mr-2 text-primary" />
+              <span>
+                Searching near: 
+                <span className="font-medium ml-1">
+                  {userLocation.city ? `${userLocation.city}, ` : ''}
+                  {userLocation.country || 'Your location'}
+                </span>
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="space-y-6">
       {showScanner && (
@@ -376,6 +444,8 @@ export const CrawlForm = () => {
       )}
 
       <HistoryList onSelectItem={handleHistoryItemSelect} />
+
+      {userLocation && renderLocationBadge()}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3">

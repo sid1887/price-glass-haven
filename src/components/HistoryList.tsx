@@ -1,192 +1,169 @@
 
-import { useState, useEffect } from "react";
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
-} from "@/components/ui/card";
+import { useState } from 'react';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { Clock, X, ExternalLink, Star, Trash2, ChevronDown, ChevronUp } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { motion, AnimatePresence } from "framer-motion";
+import { History, ExternalLink, X } from "lucide-react";
+import { formatDistanceToNow } from 'date-fns';
+import { Badge } from '@/components/ui/badge';
 
 export interface HistoryItem {
   id: string;
   timestamp: number;
   query: string;
   type: 'url' | 'name' | 'barcode';
+  productName?: string;
   bestPrice?: {
     store: string;
     price: string;
     url?: string;
-  };
+  }
 }
 
 interface HistoryListProps {
-  onSelectItem?: (item: HistoryItem) => void;
+  onSelectItem: (item: HistoryItem) => void;
 }
 
-export const HistoryList = ({ onSelectItem }: HistoryListProps) => {
-  const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  useEffect(() => {
-    loadHistory();
-  }, []);
-
+export const HistoryList: React.FC<HistoryListProps> = ({ onSelectItem }) => {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<HistoryItem[]>([]);
+  
+  // Load history items when popover opens
   const loadHistory = () => {
     try {
       const savedHistory = localStorage.getItem('price_comparison_history');
       if (savedHistory) {
         const parsedHistory = JSON.parse(savedHistory) as HistoryItem[];
-        // Sort by most recent first
-        const sortedHistory = parsedHistory.sort((a, b) => b.timestamp - a.timestamp);
-        setHistoryItems(sortedHistory);
+        setItems(parsedHistory);
       }
     } catch (error) {
       console.error("Error loading history:", error);
     }
   };
-
-  const clearHistory = () => {
+  
+  const handleOpenChange = (isOpen: boolean) => {
+    if (isOpen) {
+      loadHistory();
+    }
+    setOpen(isOpen);
+  };
+  
+  const handleClearHistory = () => {
     localStorage.removeItem('price_comparison_history');
-    setHistoryItems([]);
+    setItems([]);
   };
-
-  const removeHistoryItem = (id: string, e: React.MouseEvent) => {
+  
+  const handleDeleteItem = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
+    
     try {
-      const updatedHistory = historyItems.filter(item => item.id !== id);
-      localStorage.setItem('price_comparison_history', JSON.stringify(updatedHistory));
-      setHistoryItems(updatedHistory);
+      const updatedItems = items.filter(item => item.id !== id);
+      setItems(updatedItems);
+      localStorage.setItem('price_comparison_history', JSON.stringify(updatedItems));
     } catch (error) {
-      console.error("Error removing history item:", error);
+      console.error("Error deleting history item:", error);
     }
   };
-
-  const formatDate = (timestamp: number) => {
-    const date = new Date(timestamp);
-    return date.toLocaleString();
-  };
-
-  const formatQuery = (query: string, type: string) => {
-    if (type === 'url') {
-      try {
-        const url = new URL(query);
-        return url.hostname + url.pathname.slice(0, 20) + (url.pathname.length > 20 ? '...' : '');
-      } catch {
-        return query.slice(0, 30) + (query.length > 30 ? '...' : '');
-      }
+  
+  const getBadgeVariant = (type: string) => {
+    switch(type) {
+      case 'url': return 'outline';
+      case 'name': return 'secondary';
+      case 'barcode': return 'default';
+      default: return 'outline';
     }
-    return query.slice(0, 30) + (query.length > 30 ? '...' : '');
   };
-
+  
   return (
-    <div className="history-container mb-4 border rounded-lg p-2 bg-card">
-      <div 
-        className="flex items-center justify-between cursor-pointer p-2"
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
-        <div className="flex items-center gap-2">
-          <Clock className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-medium">Search History</h3>
-          <Badge variant="outline" className="ml-2">
-            {historyItems.length}
-          </Badge>
-        </div>
-        <div className="flex gap-2">
-          {historyItems.length > 0 && (
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={(e) => {
-                e.stopPropagation();
-                clearHistory();
-              }}
-              className="h-8 px-2"
-            >
-              <Trash2 className="h-4 w-4 text-muted-foreground" />
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="flex items-center gap-2">
+          <History className="h-4 w-4" />
+          <span>Search History</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-96 p-0" align="start">
+        <div className="flex items-center justify-between border-b p-3">
+          <h3 className="font-medium">Recent Searches</h3>
+          {items.length > 0 && (
+            <Button variant="ghost" size="sm" onClick={handleClearHistory}>
+              Clear All
             </Button>
           )}
-          {isExpanded ? (
-            <ChevronUp className="h-4 w-4 text-muted-foreground" />
-          ) : (
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          )}
         </div>
-      </div>
-
-      <AnimatePresence>
-        {isExpanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <ScrollArea className="max-h-64">
-              {historyItems.length > 0 ? (
-                <div className="p-2 space-y-2">
-                  {historyItems.map((item) => (
-                    <Card 
-                      key={item.id} 
-                      className="cursor-pointer hover:shadow-md transition-shadow"
-                      onClick={() => onSelectItem && onSelectItem(item)}
-                    >
-                      <CardHeader className="p-3 pb-0">
-                        <div className="flex justify-between">
-                          <CardTitle className="text-sm flex items-center">
-                            {formatQuery(item.query, item.type)}
-                            <Badge variant="outline" className="ml-2">
-                              {item.type === 'url' ? 'URL' : item.type === 'barcode' ? 'Barcode' : 'Product'}
-                            </Badge>
-                          </CardTitle>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={(e) => removeHistoryItem(item.id, e)} 
-                            className="h-6 w-6 p-0"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
+        <ScrollArea className="h-80">
+          {items.length === 0 ? (
+            <div className="flex items-center justify-center h-20 text-muted-foreground">
+              No recent searches
+            </div>
+          ) : (
+            <div className="space-y-1 p-2">
+              {items.map((item) => (
+                <div
+                  key={item.id}
+                  onClick={() => {
+                    onSelectItem(item);
+                    setOpen(false);
+                  }}
+                  className="flex flex-col p-3 rounded-md hover:bg-accent cursor-pointer relative group"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={getBadgeVariant(item.type)}>
+                          {item.type === 'url' ? 'URL' : item.type === 'name' ? 'Name' : 'Barcode'}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {formatDistanceToNow(item.timestamp, { addSuffix: true })}
+                        </span>
+                      </div>
+                      
+                      <div className="font-medium line-clamp-1 mt-1">
+                        {item.productName || item.query}
+                      </div>
+                      
+                      {item.query.length > 30 && (
+                        <div className="text-xs text-muted-foreground line-clamp-1 mt-1">
+                          {item.query}
                         </div>
-                        <CardDescription className="text-xs">
-                          {formatDate(item.timestamp)}
-                        </CardDescription>
-                      </CardHeader>
-                      {item.bestPrice && (
-                        <CardContent className="p-3 pt-2">
-                          <div className="flex justify-between items-center text-sm">
-                            <div className="flex items-center gap-1">
-                              <span className="font-medium">{item.bestPrice.store}</span>
-                              <span className="text-green-600">{item.bestPrice.price}</span>
-                            </div>
-                            {item.bestPrice.url && (
-                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={(e) => {
-                                e.stopPropagation();
-                                window.open(item.bestPrice?.url, '_blank');
-                              }}>
-                                <ExternalLink className="h-3 w-3" />
-                              </Button>
-                            )}
-                          </div>
-                        </CardContent>
                       )}
-                    </Card>
-                  ))}
+                    </div>
+                    
+                    <button
+                      onClick={(e) => handleDeleteItem(e, item.id)}
+                      className="opacity-0 group-hover:opacity-100 p-1 rounded-full hover:bg-accent-foreground/10"
+                    >
+                      <X className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  </div>
+                  
+                  {item.bestPrice && (
+                    <div className="flex justify-between items-center mt-2 text-sm">
+                      <div className="text-muted-foreground">{item.bestPrice.store}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{item.bestPrice.price}</span>
+                        {item.bestPrice.url && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(item.bestPrice?.url, '_blank');
+                            }}
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="p-4 text-center text-sm text-muted-foreground">
-                  No search history yet
-                </div>
-              )}
-            </ScrollArea>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+              ))}
+            </div>
+          )}
+        </ScrollArea>
+      </PopoverContent>
+    </Popover>
   );
 };

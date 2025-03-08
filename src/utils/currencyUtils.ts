@@ -1,5 +1,6 @@
 
 import { Country } from '@/components/CountrySelector';
+import { getStoredUserLocation } from '@/utils/geo';
 
 interface ExchangeRates {
   [key: string]: number;
@@ -59,6 +60,15 @@ export const getSelectedCountry = (): Country => {
     // Need to get the country data from somewhere
     // This is a simplified approach
     const countryData = window.COUNTRIES?.find((c: Country) => c.code === storedCountryCode);
+    if (countryData) {
+      return countryData;
+    }
+  }
+  
+  // Try to get from stored geolocation
+  const userLocation = getStoredUserLocation();
+  if (userLocation && userLocation.countryCode) {
+    const countryData = window.COUNTRIES?.find((c: Country) => c.code === userLocation.countryCode);
     if (countryData) {
       return countryData;
     }

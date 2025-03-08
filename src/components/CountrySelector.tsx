@@ -18,7 +18,7 @@ export interface Country {
   flag: string;
 }
 
-const COUNTRIES: Country[] = [
+export const COUNTRIES: Country[] = [
   { name: "United States", code: "US", currency: { code: "USD", symbol: "$", name: "US Dollar" }, flag: "🇺🇸" },
   { name: "China", code: "CN", currency: { code: "CNY", symbol: "¥", name: "Chinese Yuan" }, flag: "🇨🇳" },
   { name: "Japan", code: "JP", currency: { code: "JPY", symbol: "¥", name: "Japanese Yen" }, flag: "🇯🇵" },
@@ -70,6 +70,11 @@ const COUNTRIES: Country[] = [
   { name: "Peru", code: "PE", currency: { code: "PEN", symbol: "S/", name: "Peruvian Sol" }, flag: "🇵🇪" },
   { name: "New Zealand", code: "NZ", currency: { code: "NZD", symbol: "NZ$", name: "New Zealand Dollar" }, flag: "🇳🇿" },
 ];
+
+// Make countries available globally to be accessed across the app
+if (typeof window !== 'undefined') {
+  window.COUNTRIES = COUNTRIES;
+}
 
 export const CountrySelector = () => {
   const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
