@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,6 @@ import { HistoryList, HistoryItem } from "./HistoryList";
 import { v4 as uuidv4 } from 'uuid';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getStoredUserLocation } from "@/utils/geo";
-import { convertPrice } from "@/utils/currencyUtils";
 
 interface StorePrice {
   store: string;
@@ -206,9 +206,12 @@ export const CrawlForm = () => {
       
       // Get location info for more relevant search
       const locationData = getStoredUserLocation();
+      const searchOptions = locationData ? {
+        country: locationData.country,
+        city: locationData.city
+      } : undefined;
       
-      // Fix the issue here: Only pass one argument to crawlWebsite
-      const result = await FirecrawlService.crawlWebsite(searchTerm);
+      const result = await FirecrawlService.crawlWebsite(searchTerm, searchOptions);
       
       clearInterval(progressInterval);
       setProgress(100);
