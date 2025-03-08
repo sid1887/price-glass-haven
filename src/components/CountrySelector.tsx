@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -118,7 +119,7 @@ export const CountrySelector = () => {
         <Button 
           variant="outline" 
           size="sm" 
-          className="hidden flex items-center gap-2 py-6 px-4 animate-hover transition-all duration-300 hover:shadow-lg hover:shadow-primary/10 hover:border-primary"
+          className="flex items-center gap-2 py-6 px-4 animate-hover transition-all duration-300 hover:shadow-lg hover:shadow-primary/10 hover:border-primary"
         >
           {selectedCountry ? (
             <>

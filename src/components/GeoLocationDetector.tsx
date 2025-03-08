@@ -109,7 +109,7 @@ export const GeoLocationDetector: React.FC<GeoLocationDetectorProps> = ({ onDete
       ) : (
         <Button 
           variant="outline" 
-          className="w-full flex gap-2 justify-center items-center py-6 bg-green-50 dark:bg-green-900/20"
+          className="w-full flex gap-2 justify-center items-center py-6 bg-green-50"
           onClick={() => setDetectionComplete(false)}
         >
           <Globe className="h-4 w-4" />
