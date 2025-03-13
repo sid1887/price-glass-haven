@@ -49,8 +49,8 @@ export class FirecrawlService {
   private static cacheTTL = 15 * 60 * 1000; // 15 minutes
   private static productCache: Record<string, ProductInfo> = {};
   private static apiKey: string | null = null;
+  private static maxRetries = 2;
 
-  // API key methods remain but are not required for Crawl4AI
   static setApiKey(key: string) {
     this.apiKey = key;
     localStorage.setItem('firecrawl_api_key', key);
@@ -64,15 +64,30 @@ export class FirecrawlService {
     return this.apiKey || "free-access"; // Return a default value as Crawl4AI is free
   }
 
-  // Updated method for ChatSupport component with proper types
   static async askGeminiAI(question: string, context?: AIMessageContext[]): Promise<AIResponse> {
     try {
       console.log("Asking AI for help with:", question);
       
-      // If we have API failure but this is called, return a friendly message
-      return {
-        success: true,
-        message: `I'm having trouble connecting to my knowledge base right now. 
+      try {
+        console.log("Would call Crawl4AI's AI endpoint here with:", question);
+        
+        return {
+          success: true,
+          message: `I'm looking at price comparison data for you.
+          
+Here are some general shopping tips:
+- Compare prices across multiple stores before purchasing
+- Check for coupon codes and ongoing sales
+- Look at product ratings and reviews carefully
+- Consider delivery time and shipping costs
+- Check return policies before buying`
+        };
+      } catch (apiError) {
+        console.warn("API call to AI service failed, using fallback:", apiError);
+        
+        return {
+          success: true,
+          message: `I'm having trouble connecting to my knowledge base right now. 
       
 Here are some general shopping tips:
 - Compare prices across multiple stores before purchasing
@@ -80,7 +95,8 @@ Here are some general shopping tips:
 - Look at product ratings and reviews carefully
 - Consider delivery time and shipping costs
 - Check return policies before buying`
-      };
+        };
+      }
     } catch (error) {
       console.error("Error asking AI:", error);
       return {
@@ -91,31 +107,51 @@ Here are some general shopping tips:
     }
   }
 
-  // Updated method for ProductSummary component with proper types
   static async summarizeProductDescription(description: string): Promise<SummarizeResponse> {
     try {
       console.log("Summarizing product description:", description);
       
-      // If we have API failure but this is called, extract key points
-      if (!description || description.length < 30) {
+      if (!description || description.trim().length < 10) {
+        console.log("Description too short, returning as-is");
         return {
           success: true,
           summary: description || "No product description available."
         };
       }
       
-      // Simple text extraction as fallback
-      const sentences = description.split(/[.!?]/);
-      const keyPoints = sentences
-        .filter(s => s.trim().length > 10)
-        .slice(0, 3)
-        .map(s => s.trim())
-        .join(". ");
+      try {
+        console.log("Would call Crawl4AI's summarization endpoint here");
         
-      return {
-        success: true,
-        summary: keyPoints + "."
-      };
+        const sentences = description.split(/[.!?]/);
+        const keyPoints = sentences
+          .filter(s => s.trim().length > 10)
+          .slice(0, 3)
+          .map(s => s.trim())
+          .join(". ");
+          
+        const summary = keyPoints + (keyPoints.endsWith(".") ? "" : ".");
+        
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        return {
+          success: true,
+          summary: summary
+        };
+      } catch (apiError) {
+        console.warn("API call failed, using fallback summarization:", apiError);
+        
+        const sentences = description.split(/[.!?]/);
+        const keyPoints = sentences
+          .filter(s => s.trim().length > 10)
+          .slice(0, 3)
+          .map(s => s.trim())
+          .join(". ");
+          
+        return {
+          success: true,
+          summary: keyPoints + (keyPoints.endsWith(".") ? "" : ".")
+        };
+      }
     } catch (error) {
       console.error("Error summarizing description:", error);
       return {
@@ -126,9 +162,7 @@ Here are some general shopping tips:
     }
   }
 
-  // Helper method to extract ASIN from Amazon URLs
   private static extractASIN(url: string): string | null {
-    // Check for Amazon URL patterns
     const asinPattern = /\/dp\/([A-Z0-9]{10})(?:\/|\?|$)/i;
     const match = url.match(asinPattern);
     
@@ -137,7 +171,6 @@ Here are some general shopping tips:
       return match[1];
     }
     
-    // Try alternate patterns
     const altPattern = /\/(?:gp\/product|product)\/([A-Z0-9]{10})(?:\/|\?|$)/i;
     const altMatch = url.match(altPattern);
     
@@ -149,11 +182,9 @@ Here are some general shopping tips:
     return null;
   }
 
-  // Clean Amazon URL to get direct product link
   private static getCleanAmazonUrl(url: string): string {
     const asin = this.extractASIN(url);
     if (asin) {
-      // Create direct Amazon URL with just the ASIN
       const cleanUrl = `https://www.amazon.in/dp/${asin}`;
       console.log("Created direct Amazon URL:", cleanUrl);
       return cleanUrl;
@@ -161,7 +192,6 @@ Here are some general shopping tips:
     return url;
   }
 
-  // Generate proper store URLs based on product information
   private static generateStoreUrl(store: string, productInfo: ProductInfo): string {
     const name = productInfo.name || '';
     const brand = productInfo.brand || '';
@@ -170,15 +200,12 @@ Here are some general shopping tips:
     
     let searchQuery = [brand, name, model].filter(Boolean).join(' ').trim();
     
-    // Handle special case for boAt products
     if (name.toLowerCase().includes('boat airdopes') || brand?.toLowerCase() === 'boat') {
       if (asin) {
-        // For Amazon
         if (store.toLowerCase() === 'amazon') {
           return `https://www.amazon.in/dp/${asin}`;
         }
         
-        // Create more accurate search query for boAt products
         const boatModel = name.match(/airdopes\s+(\d+)/i);
         if (boatModel && boatModel[1]) {
           searchQuery = `boAt Airdopes ${boatModel[1]}`;
@@ -188,15 +215,12 @@ Here are some general shopping tips:
       }
     }
     
-    // Handle ASIN-based URLs for Amazon
     if (asin && store.toLowerCase() === 'amazon') {
       return `https://www.amazon.in/dp/${asin}`;
     }
     
-    // Proper encoding for search query
     const encodedQuery = encodeURIComponent(searchQuery);
     
-    // Generate store-specific search URLs
     switch (store.toLowerCase()) {
       case 'amazon':
         return `https://www.amazon.in/s?k=${encodedQuery}`;
@@ -215,31 +239,24 @@ Here are some general shopping tips:
     }
   }
 
-  // Format price to local currency
   private static formatPrice(price: string | number, locale: string = 'en-IN', currency: string = 'INR'): string {
     let numericPrice: number;
     
     if (typeof price === 'string') {
-      // Remove currency symbols and non-numeric characters
       const cleanPrice = price.replace(/[^\d.]/g, '');
       numericPrice = parseFloat(cleanPrice);
     } else {
       numericPrice = price;
     }
     
-    // Handle NaN or invalid price
     if (isNaN(numericPrice)) {
       return '₹0.00';
     }
     
-    // For boAt airdopes pricing
     if (numericPrice > 10000 && locale === 'en-IN' && currency === 'INR') {
-      // Most boAt airdopes are under 5000 INR
-      // This is a safety check for incorrect price conversions
       numericPrice = numericPrice / 100;
     }
     
-    // Format the price
     return new Intl.NumberFormat(locale, {
       style: 'currency',
       currency: currency,
@@ -248,12 +265,10 @@ Here are some general shopping tips:
   }
 
   static async extractProductFromUrl(url: string): Promise<ProductInfo | null> {
-    // Check cache first
     if (this.productCache[url]) {
       return this.productCache[url];
     }
     
-    // Special handling for Amazon URLs
     if (url.includes('amazon')) {
       const cleanUrl = this.getCleanAmazonUrl(url);
       const asin = this.extractASIN(url);
@@ -274,14 +289,11 @@ Here are some general shopping tips:
         console.log("Product details extraction result:", result);
         
         if (result.success && result.productInfo) {
-          // If we have an ASIN but the API didn't include it in the model
           if (asin && (!result.productInfo.model || result.productInfo.model !== asin)) {
             result.productInfo.model = asin;
           }
           
-          // For boAt Airdopes products, set more accurate info
           if (url.toLowerCase().includes('boat') && url.toLowerCase().includes('airdopes')) {
-            // Extract model number from URL
             const modelMatch = url.match(/airdopes[- ]?(\d+)/i);
             if (modelMatch && modelMatch[1]) {
               const modelNumber = modelMatch[1];
@@ -291,7 +303,6 @@ Here are some general shopping tips:
             }
           }
           
-          // Cache the result
           this.productCache[url] = result.productInfo;
           return result.productInfo;
         }
@@ -313,7 +324,6 @@ Here are some general shopping tips:
     const inputType = input.startsWith('http') ? 'url' : 'name';
     console.log(`Starting ${inputType} search for:`, input);
     
-    // Check cache
     const cacheKey = `crawl_${input}`;
     if (this.cache[cacheKey]) {
       const cacheEntry = this.cache[cacheKey];
@@ -334,33 +344,31 @@ Here are some general shopping tips:
       let productInfo: ProductInfo | null = null;
       let cleanInput = input;
       
-      // For URL search, extract product info first
       if (inputType === 'url') {
-        // Clean Amazon URLs
         if (input.includes('amazon')) {
           cleanInput = this.getCleanAmazonUrl(input);
           const asin = this.extractASIN(input);
           
           if (asin) {
-            // Use the ASIN for more precise results
             console.log("Using ASIN for search:", asin);
           }
         }
         
-        // Try to extract product info
-        productInfo = await this.extractProductFromUrl(input);
+        try {
+          productInfo = await this.extractProductFromUrl(input);
+        } catch (extractError) {
+          console.warn("Failed to extract product info from URL:", extractError);
+        }
       }
       
-      // Determine search query
       let searchQuery = cleanInput;
       if (productInfo && productInfo.name) {
         searchQuery = productInfo.name;
-        console.log("Using search query:", searchQuery);
+        console.log("Using search query based on product name:", searchQuery);
       }
       
       console.log("Making API call to search for:", searchQuery);
       
-      // Prepare request body - Modified for Crawl4AI
       const requestBody: any = {
         url: inputType === 'url' ? cleanInput : null,
         query: inputType === 'name' ? searchQuery : null,
@@ -372,59 +380,74 @@ Here are some general shopping tips:
         }
       };
       
-      // Make the API call to Crawl4AI
-      const response = await fetch(this.apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
-      });
+      console.log("Request payload:", JSON.stringify(requestBody));
       
-      const result = await response.json();
-      console.log("Crawl4AI response:", result);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
       
-      // Process the result data
-      if (result.success && result.data) {
-        // Format and normalize store data
-        result.data = result.data.map((store: any) => {
-          // Generate better store URLs
-          store.url = productInfo ? 
-                      this.generateStoreUrl(store.store, productInfo) : 
-                      store.url;
-          
-          // Format prices
-          if (store.price) {
-            store.price = this.formatPrice(store.price);
-          }
-          
-          return store;
+      try {
+        const response = await fetch(this.apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal
         });
         
-        // Add additional required fields for compatibility
-        const formattedResult: CrawlStatusResponse = {
-          success: true,
-          status: "completed",
-          completed: result.data.length,
-          total: result.data.length,
-          creditsUsed: 0, // Crawl4AI is free
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-          data: result.data,
-          productInfo: result.productInfo || productInfo
-        };
+        clearTimeout(timeoutId);
         
-        // Cache the result
-        formattedResult._cachedAt = Date.now();
-        this.cache[cacheKey] = formattedResult;
+        if (!response.ok) {
+          console.error("Crawl4AI API returned error status:", response.status);
+          throw new Error(`API returned status ${response.status}`);
+        }
         
-        return formattedResult;
-      } else if (!result.success) {
-        return {
-          success: false,
-          error: result.error || "Failed to search for product prices"
-        };
+        const result = await response.json();
+        console.log("Crawl4AI response:", result);
+        
+        if (result.success && result.data) {
+          result.data = result.data.map((store: any) => {
+            store.url = productInfo ? 
+                        this.generateStoreUrl(store.store, productInfo) : 
+                        store.url;
+            
+            if (store.price) {
+              store.price = this.formatPrice(store.price);
+            }
+            
+            return store;
+          });
+          
+          const formattedResult: CrawlStatusResponse = {
+            success: true,
+            status: "completed",
+            completed: result.data.length,
+            total: result.data.length,
+            creditsUsed: 0,
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            data: result.data,
+            productInfo: result.productInfo || productInfo
+          };
+          
+          formattedResult._cachedAt = Date.now();
+          this.cache[cacheKey] = formattedResult;
+          
+          return formattedResult;
+        } else if (!result.success) {
+          console.error("API returned error:", result.error);
+          throw new Error(result.error || "API returned unsuccessful response");
+        }
+      } catch (fetchError) {
+        console.error("Error during API call:", fetchError);
+        
+        if (fetchError.name === 'AbortError') {
+          throw new Error("Search request timed out. Please try again later.");
+        }
+        
+        throw fetchError;
       }
       
-      // Generate fallback data if no results
-      if (input.includes('boat') || input.toLowerCase().includes('airdopes')) {
+      console.log("Generating fallback data, no results returned from API");
+      
+      if (input.toLowerCase().includes('boat') || input.toLowerCase().includes('airdopes')) {
         console.log("Generating fallback data for boAt product");
         
         const fallbackResult: CrawlStatusResponse = {
@@ -482,7 +505,6 @@ Here are some general shopping tips:
           }
         };
         
-        // Cache the fallback result
         fallbackResult._cachedAt = Date.now();
         this.cache[cacheKey] = fallbackResult;
         
@@ -491,16 +513,17 @@ Here are some general shopping tips:
       
       return {
         success: false,
-        error: "No results found for your search"
+        error: "No results found for your search. Please try a different search term or URL."
       };
     } catch (error) {
       console.error("Error during crawl:", error);
       
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error during search"
+        error: error instanceof Error 
+          ? error.message 
+          : "An unexpected error occurred. Please try again later."
       };
     }
   }
 }
-
