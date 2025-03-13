@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -88,6 +87,8 @@ export const CrawlForm = () => {
     country?: string;
     city?: string;
   } | null>(null);
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const maxRetries = 1;
 
   useEffect(() => {
     const location = getStoredUserLocation();
@@ -97,6 +98,12 @@ export const CrawlForm = () => {
         city: location.city
       });
     }
+    
+    return () => {
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -142,6 +149,22 @@ export const CrawlForm = () => {
 
   const handleSubmit = async (e: React.FormEvent, searchType: 'url' | 'name' | 'barcode') => {
     e.preventDefault();
+    
+    if (!FirecrawlService.getApiKey()) {
+      toast({
+        title: "API Key Required",
+        description: "Please set your API key in the settings above",
+        variant: "destructive",
+        duration: 5000,
+      });
+      return;
+    }
+    
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+    
     setIsLoading(true);
     setProgress(0);
     setCrawlResult(null);
@@ -150,7 +173,6 @@ export const CrawlForm = () => {
     setEnhancedRatings(null);
     setProductInfo(null);
     setAiStatus("Starting AI-powered search...");
-    setSearchAttempts(prev => prev + 1);
 
     try {
       const searchTerm = searchType === 'url' ? url : productName;
@@ -240,6 +262,8 @@ export const CrawlForm = () => {
           calculateEnhancedRatings(result.data);
           
           saveToHistory(searchTerm, searchType, sortedData[0], result.productInfo?.name);
+          
+          setSearchAttempts(0);
         } else {
           setSearchError("No results found for your search. Try a more specific product name or URL.");
         }
@@ -247,16 +271,19 @@ export const CrawlForm = () => {
         console.error("Search failed:", (result as ErrorResponse).error);
         setSearchError((result as ErrorResponse).error || "Failed to search");
         
-        if (searchAttempts <= 1) {
+        const currentAttempts = searchAttempts + 1;
+        setSearchAttempts(currentAttempts);
+        
+        if (currentAttempts <= maxRetries) {
           toast({
             title: "Retrying search",
             description: "First attempt didn't yield results. Trying again with enhanced parameters...",
             duration: 3000,
           });
           
-          setTimeout(() => {
+          retryTimeoutRef.current = setTimeout(() => {
             handleSubmit(e, searchType);
-          }, 1000);
+          }, 2000);
           return;
         }
         
@@ -363,12 +390,10 @@ export const CrawlForm = () => {
   };
 
   const getStoreURL = (store: StorePrice) => {
-    // If the store URL is valid, use it directly
     if (store.url && store.url.includes('http') && !store.url.includes('undefined')) {
       return store.url;
     }
     
-    // If we have product info, use it to construct a better URL
     const searchQuery = productInfo?.name || (activeTab === 'url' ? url : productName);
     const storeName = store.store;
     
@@ -426,7 +451,7 @@ export const CrawlForm = () => {
 
       {userLocation && renderLocationBadge()}
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value)} className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="url">Search by URL</TabsTrigger>
           <TabsTrigger value="name">Search by Name</TabsTrigger>

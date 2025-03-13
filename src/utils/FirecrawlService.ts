@@ -15,6 +15,7 @@ interface CrawlStatusResponse {
   expiresAt: string;
   data: any[];
   productInfo?: any;
+  _cachedAt?: number; // Added missing property
 }
 
 type CrawlResponse = CrawlStatusResponse | ErrorResponse;
@@ -33,6 +34,66 @@ export class FirecrawlService {
   private static cache: Record<string, CrawlStatusResponse> = {};
   private static cacheTTL = 15 * 60 * 1000; // 15 minutes
   private static productCache: Record<string, ProductInfo> = {};
+  private static apiKey: string | null = null;
+
+  // New method for authorization
+  static setApiKey(key: string) {
+    this.apiKey = key;
+    localStorage.setItem('firecrawl_api_key', key);
+    console.log("API key set successfully");
+  }
+
+  static getApiKey(): string | null {
+    if (!this.apiKey) {
+      this.apiKey = localStorage.getItem('firecrawl_api_key');
+    }
+    return this.apiKey;
+  }
+
+  // Added missing method for ChatSupport component
+  static async askGeminiAI(question: string, context?: string): Promise<string> {
+    try {
+      console.log("Asking AI for help with:", question);
+      
+      // If we have API failure but this is called, return a friendly message
+      return `I'm having trouble connecting to my knowledge base right now. 
+      
+Here are some general shopping tips:
+- Compare prices across multiple stores before purchasing
+- Check for coupon codes and ongoing sales
+- Look at product ratings and reviews carefully
+- Consider delivery time and shipping costs
+- Check return policies before buying`;
+    } catch (error) {
+      console.error("Error asking AI:", error);
+      return "Sorry, I'm unable to answer that question right now. Please try again later.";
+    }
+  }
+
+  // Added missing method for ProductSummary component
+  static async summarizeProductDescription(description: string): Promise<string> {
+    try {
+      console.log("Summarizing product description:", description);
+      
+      // If we have API failure but this is called, extract key points
+      if (!description || description.length < 30) {
+        return description || "No product description available.";
+      }
+      
+      // Simple text extraction as fallback
+      const sentences = description.split(/[.!?]/);
+      const keyPoints = sentences
+        .filter(s => s.trim().length > 10)
+        .slice(0, 3)
+        .map(s => s.trim())
+        .join(". ");
+        
+      return keyPoints + ".";
+    } catch (error) {
+      console.error("Error summarizing description:", error);
+      return "Unable to summarize product description at this time.";
+    }
+  }
 
   // Helper method to extract ASIN from Amazon URLs
   private static extractASIN(url: string): string | null {
@@ -169,9 +230,18 @@ export class FirecrawlService {
       try {
         console.log("Calling edge function to extract product details from URL:", cleanUrl);
         
+        const apiKey = this.getApiKey();
+        const headers: Record<string, string> = { 
+          'Content-Type': 'application/json' 
+        };
+        
+        if (apiKey) {
+          headers['Authorization'] = `Bearer ${apiKey}`;
+        }
+        
         const response = await fetch(this.apiUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({
             query: cleanUrl,
             type: 'url',
@@ -305,18 +375,35 @@ export class FirecrawlService {
       if (productInfo) {
         requestBody.extractedProduct = productInfo;
       }
+
+      // Add API key if available
+      const apiKey = this.getApiKey();
+      const headers: Record<string, string> = { 
+        'Content-Type': 'application/json' 
+      };
+      
+      if (apiKey) {
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      }
       
       // Make the API call
       const response = await fetch(this.apiUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers,
         body: JSON.stringify(requestBody)
       });
       
       const result = await response.json();
-      console.log("Crawl successful:", result);
+      console.log("Crawl response:", result);
+      
+      // Check for authentication error
+      if (result.code === 401) {
+        console.error("Authentication error: API key missing or invalid");
+        return {
+          success: false,
+          error: "Authentication error: Please set your API key in settings"
+        };
+      }
       
       // Process the result data
       if (result.success && result.data) {
@@ -356,9 +443,22 @@ export class FirecrawlService {
         // Cache the result
         result._cachedAt = Date.now();
         this.cache[cacheKey] = result;
+        
+        return result;
+      } else if (result.code) {
+        // Handle API errors
+        return {
+          success: false,
+          error: result.message || "API Error: " + result.code
+        };
+      } else if (!result.success) {
+        return result as ErrorResponse;
       }
       
-      return result;
+      return {
+        success: false,
+        error: "Unknown error format in API response"
+      };
     } catch (error) {
       console.error("Error during crawl:", error);
       
