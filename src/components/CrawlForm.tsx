@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
@@ -361,12 +362,14 @@ export const CrawlForm = () => {
     handleSubmit(e, item.type);
   };
 
-  const getStoreURL = (store: StorePrice, defaultQuery: string) => {
+  const getStoreURL = (store: StorePrice) => {
+    // If the store URL is valid, use it directly
     if (store.url && store.url.includes('http') && !store.url.includes('undefined')) {
       return store.url;
     }
     
-    const searchQuery = productInfo?.name || defaultQuery;
+    // If we have product info, use it to construct a better URL
+    const searchQuery = productInfo?.name || (activeTab === 'url' ? url : productName);
     const storeName = store.store;
     
     const cleanQuery = searchQuery.replace(/[^\w\s]/gi, ' ').trim();
@@ -374,7 +377,7 @@ export const CrawlForm = () => {
     
     switch(storeName.toLowerCase()) {
       case 'amazon':
-        return `https://www.amazon.com/s?k=${query}`;
+        return `https://www.amazon.in/s?k=${query}`;
       case 'flipkart':
         return `https://www.flipkart.com/search?q=${query}`;
       case 'croma':
@@ -423,7 +426,7 @@ export const CrawlForm = () => {
 
       {userLocation && renderLocationBadge()}
 
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'url' | 'name' | 'barcode')} className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="url">Search by URL</TabsTrigger>
           <TabsTrigger value="name">Search by Name</TabsTrigger>
@@ -673,7 +676,7 @@ export const CrawlForm = () => {
                 <Button
                   variant="default"
                   onClick={() => {
-                    const storeURL = getStoreURL(bestDeal, productName || url);
+                    const storeURL = getStoreURL(bestDeal);
                     window.open(storeURL, '_blank');
                   }}
                   className="w-full mt-2"
@@ -761,7 +764,7 @@ export const CrawlForm = () => {
                             <Button
                               variant="outline"
                               onClick={() => {
-                                const storeURL = getStoreURL(item, productName || url);
+                                const storeURL = getStoreURL(item);
                                 window.open(storeURL, '_blank');
                               }}
                               className="w-full mt-2"

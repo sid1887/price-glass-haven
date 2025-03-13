@@ -5,11 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import LocationSelector from "@/components/LocationSelector";
 import { Sparkles } from "lucide-react";
 
-// Set window.COUNTRIES for global access to the countries data
-if (typeof window !== 'undefined') {
-  window.COUNTRIES = COUNTRIES;
-}
-
 export default function Index() {
   return (
     <div className="container max-w-4xl mx-auto p-4 pb-24">
