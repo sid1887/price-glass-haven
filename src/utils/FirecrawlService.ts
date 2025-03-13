@@ -1,4 +1,3 @@
-
 interface ErrorResponse {
   success: false;
   error: string;
@@ -27,6 +26,23 @@ interface ProductInfo {
   attributes?: Record<string, string>;
 }
 
+interface AIMessageContext {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+interface SummarizeResponse {
+  success: boolean;
+  summary: string;
+  error?: string;
+}
+
+interface AIResponse {
+  success: boolean;
+  message: string;
+  error?: string;
+}
+
 export class FirecrawlService {
   private static apiUrl = "https://api.crawl4ai.com/scrape";
   private static cache: Record<string, CrawlStatusResponse> = {};
@@ -48,34 +64,44 @@ export class FirecrawlService {
     return this.apiKey || "free-access"; // Return a default value as Crawl4AI is free
   }
 
-  // Added missing method for ChatSupport component
-  static async askGeminiAI(question: string, context?: string): Promise<string> {
+  // Updated method for ChatSupport component with proper types
+  static async askGeminiAI(question: string, context?: AIMessageContext[]): Promise<AIResponse> {
     try {
       console.log("Asking AI for help with:", question);
       
       // If we have API failure but this is called, return a friendly message
-      return `I'm having trouble connecting to my knowledge base right now. 
+      return {
+        success: true,
+        message: `I'm having trouble connecting to my knowledge base right now. 
       
 Here are some general shopping tips:
 - Compare prices across multiple stores before purchasing
 - Check for coupon codes and ongoing sales
 - Look at product ratings and reviews carefully
 - Consider delivery time and shipping costs
-- Check return policies before buying`;
+- Check return policies before buying`
+      };
     } catch (error) {
       console.error("Error asking AI:", error);
-      return "Sorry, I'm unable to answer that question right now. Please try again later.";
+      return {
+        success: false,
+        message: "Sorry, I'm unable to answer that question right now. Please try again later.",
+        error: error instanceof Error ? error.message : "Unknown error"
+      };
     }
   }
 
-  // Added missing method for ProductSummary component
-  static async summarizeProductDescription(description: string): Promise<string> {
+  // Updated method for ProductSummary component with proper types
+  static async summarizeProductDescription(description: string): Promise<SummarizeResponse> {
     try {
       console.log("Summarizing product description:", description);
       
       // If we have API failure but this is called, extract key points
       if (!description || description.length < 30) {
-        return description || "No product description available.";
+        return {
+          success: true,
+          summary: description || "No product description available."
+        };
       }
       
       // Simple text extraction as fallback
@@ -86,10 +112,17 @@ Here are some general shopping tips:
         .map(s => s.trim())
         .join(". ");
         
-      return keyPoints + ".";
+      return {
+        success: true,
+        summary: keyPoints + "."
+      };
     } catch (error) {
       console.error("Error summarizing description:", error);
-      return "Unable to summarize product description at this time.";
+      return {
+        success: false,
+        summary: "Unable to summarize product description at this time.",
+        error: error instanceof Error ? error.message : "Unknown error"
+      };
     }
   }
 
@@ -470,3 +503,4 @@ Here are some general shopping tips:
     }
   }
 }
+
