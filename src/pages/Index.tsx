@@ -2,7 +2,6 @@
 import React from "react";
 import { CrawlForm } from "@/components/CrawlForm";
 import { Badge } from "@/components/ui/badge";
-import LocationSelector from "@/components/LocationSelector";
 import { Sparkles } from "lucide-react";
 
 export default function Index() {
@@ -14,9 +13,6 @@ export default function Index() {
           <Badge variant="outline" className="gap-1 text-xs py-0">
             <Sparkles className="w-3 h-3" /> AI-Powered
           </Badge>
-        </div>
-        <div className="flex items-center gap-2">
-          <LocationSelector />
         </div>
       </div>
       
