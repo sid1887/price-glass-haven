@@ -5,10 +5,16 @@ import { Badge } from "@/components/ui/badge";
 import { Sparkles } from "lucide-react";
 import { FirecrawlService } from "@/utils/FirecrawlService";
 import { useToast } from "@/components/ui/use-toast";
+import LocationSelector from "@/components/LocationSelector";
+import { Country } from "@/components/CountrySelector";
 
 export default function Index() {
   const { toast } = useToast();
   const [keySet, setKeySet] = useState(true); // Default to true since Crawl4AI doesn't require an API key
+  const [selectedLocation, setSelectedLocation] = useState<{
+    country: Country,
+    city?: string
+  } | null>(null);
   
   useEffect(() => {
     // Set a default API key since Crawl4AI doesn't actually require one
@@ -21,6 +27,11 @@ export default function Index() {
     });
   }, [toast]);
 
+  const handleLocationChange = (location: { country: Country, city?: string }) => {
+    setSelectedLocation(location);
+    // Additional logic can be added here if needed when location changes
+  };
+
   return (
     <div className="container max-w-4xl mx-auto p-4 pb-24">
       <div className="flex justify-between items-center py-4 mb-8">
@@ -30,6 +41,7 @@ export default function Index() {
             <Sparkles className="w-3 h-3" /> AI-Powered
           </Badge>
         </div>
+        <LocationSelector onLocationChange={handleLocationChange} />
       </div>
       
       <div className="space-y-6">
