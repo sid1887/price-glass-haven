@@ -14,10 +14,9 @@ const ProductSummary: React.FC<ProductSummaryProps> = ({ description }) => {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [retryCount, setRetryCount] = React.useState(0);
-  const [autoRetryDisabled, setAutoRetryDisabled] = React.useState(false);
 
   const getSummary = React.useCallback(async () => {
-    if (!description || loading || autoRetryDisabled) return;
+    if (!description) return;
     
     setLoading(true);
     setError(null);
@@ -31,29 +30,22 @@ const ProductSummary: React.FC<ProductSummaryProps> = ({ description }) => {
       } else {
         setError(result.error || "Failed to generate summary");
         console.error("Summarization error:", result.error);
-        
-        // Disable auto-retry if we've tried multiple times
-        if (retryCount >= 1) {
-          setAutoRetryDisabled(true);
-        }
       }
     } catch (err) {
       console.error("Exception during summarization:", err);
       setError("An error occurred while generating the summary");
-      setAutoRetryDisabled(true);
     } finally {
       setLoading(false);
     }
-  }, [description, retryCount, loading, autoRetryDisabled]);
+  }, [description, retryCount]);
 
   React.useEffect(() => {
-    if (!description || autoRetryDisabled) return;
+    if (!description) return;
     getSummary();
-  }, [description, getSummary, autoRetryDisabled]);
+  }, [description, getSummary]);
 
   const handleRetry = () => {
     setRetryCount(prev => prev + 1);
-    setAutoRetryDisabled(false);
     getSummary();
   };
 

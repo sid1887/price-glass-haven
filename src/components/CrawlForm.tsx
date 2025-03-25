@@ -89,7 +89,6 @@ export const CrawlForm = () => {
   } | null>(null);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const maxRetries = 1;
-  const [autoRetryEnabled, setAutoRetryEnabled] = useState(true);
 
   useEffect(() => {
     const location = getStoredUserLocation();
@@ -161,10 +160,6 @@ export const CrawlForm = () => {
       return;
     }
     
-    if (isLoading) {
-      return; // Don't process if already loading
-    }
-    
     if (retryTimeoutRef.current) {
       clearTimeout(retryTimeoutRef.current);
       retryTimeoutRef.current = null;
@@ -178,7 +173,6 @@ export const CrawlForm = () => {
     setEnhancedRatings(null);
     setProductInfo(null);
     setAiStatus("Starting AI-powered search...");
-    setAutoRetryEnabled(true);
 
     try {
       const searchTerm = searchType === 'url' ? url : productName;
@@ -280,7 +274,7 @@ export const CrawlForm = () => {
         const currentAttempts = searchAttempts + 1;
         setSearchAttempts(currentAttempts);
         
-        if (currentAttempts <= maxRetries && autoRetryEnabled) {
+        if (currentAttempts <= maxRetries) {
           toast({
             title: "Retrying search",
             description: "First attempt didn't yield results. Trying again with enhanced parameters...",
@@ -288,19 +282,17 @@ export const CrawlForm = () => {
           });
           
           retryTimeoutRef.current = setTimeout(() => {
-            if (isLoading) return; // Don't retry if already loading
-            const mockEvent = { preventDefault: () => {} } as React.FormEvent;
-            handleSubmit(mockEvent, searchType);
+            handleSubmit(e, searchType);
           }, 2000);
-        } else {
-          setAutoRetryEnabled(false);
-          toast({
-            title: "AI Search Error",
-            description: (result as ErrorResponse).error || "Failed to search",
-            variant: "destructive",
-            duration: 3000,
-          });
+          return;
         }
+        
+        toast({
+          title: "AI Search Error",
+          description: (result as ErrorResponse).error || "Failed to search",
+          variant: "destructive",
+          duration: 3000,
+        });
       }
     } catch (error) {
       console.error('Error during search:', error);
@@ -311,7 +303,6 @@ export const CrawlForm = () => {
         variant: "destructive",
         duration: 3000,
       });
-      setAutoRetryEnabled(false);
     } finally {
       setIsLoading(false);
       setProgress(100);

@@ -1,4 +1,3 @@
-
 interface ErrorResponse {
   success: false;
   error: string;
@@ -72,9 +71,6 @@ export class FirecrawlService {
       try {
         console.log("Would call Crawl4AI's AI endpoint here with:", question);
         
-        // Wait 800ms to simulate network delay
-        await new Promise(resolve => setTimeout(resolve, 800));
-        
         return {
           success: true,
           message: `I'm looking at price comparison data for you.
@@ -126,18 +122,16 @@ Here are some general shopping tips:
       try {
         console.log("Would call Crawl4AI's summarization endpoint here");
         
-        // Create a simple summary from the description
         const sentences = description.split(/[.!?]/);
         const keyPoints = sentences
           .filter(s => s.trim().length > 10)
           .slice(0, 3)
           .map(s => s.trim())
           .join(". ");
-        
-        // Simulate API delay  
-        await new Promise(resolve => setTimeout(resolve, 800));
-        
+          
         const summary = keyPoints + (keyPoints.endsWith(".") ? "" : ".");
+        
+        await new Promise(resolve => setTimeout(resolve, 300));
         
         return {
           success: true,
@@ -282,64 +276,35 @@ Here are some general shopping tips:
       try {
         console.log("Calling Crawl4AI to extract product details from URL:", cleanUrl);
         
-        try {
-          // Simulate API call with timeout
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 5000);
-          
-          // Simulate API delay
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          clearTimeout(timeoutId);
-          
-          // Return mock product data based on URL patterns
-          let mockProductInfo: ProductInfo = {};
-          
-          if (url.toLowerCase().includes('boat') || url.toLowerCase().includes('airdopes')) {
-            mockProductInfo = {
-              name: "boAt Airdopes True Wireless Earbuds",
-              brand: "boAt",
-              category: "Earbuds",
-              model: "Airdopes"
-            };
-          } else if (url.toLowerCase().includes('iphone')) {
-            mockProductInfo = {
-              name: "Apple iPhone",
-              brand: "Apple",
-              category: "Smartphones",
-              model: url.toLowerCase().includes('13') ? "iPhone 13" : "iPhone"
-            };
-          } else if (url.toLowerCase().includes('samsung')) {
-            mockProductInfo = {
-              name: "Samsung Galaxy",
-              brand: "Samsung",
-              category: "Electronics",
-              model: "Galaxy"
-            };
-          } else {
-            // Generic product info
-            mockProductInfo = {
-              name: "Product from " + (url.includes('amazon') ? 'Amazon' : 
-                      url.includes('flipkart') ? 'Flipkart' : 'Online Store'),
-              category: "Electronics"
-            };
+        const response = await fetch(this.apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: cleanUrl,
+            action: 'extract_product_info'
+          })
+        });
+        
+        const result = await response.json();
+        console.log("Product details extraction result:", result);
+        
+        if (result.success && result.productInfo) {
+          if (asin && (!result.productInfo.model || result.productInfo.model !== asin)) {
+            result.productInfo.model = asin;
           }
           
-          this.productCache[url] = mockProductInfo;
-          return mockProductInfo;
-        } catch (apiError) {
-          console.warn("API call failed, generating fallback product data:", apiError);
+          if (url.toLowerCase().includes('boat') && url.toLowerCase().includes('airdopes')) {
+            const modelMatch = url.match(/airdopes[- ]?(\d+)/i);
+            if (modelMatch && modelMatch[1]) {
+              const modelNumber = modelMatch[1];
+              result.productInfo.name = `boAt Airdopes ${modelNumber}`;
+              result.productInfo.brand = "boAt";
+              result.productInfo.category = "Earbuds";
+            }
+          }
           
-          // Create fallback product info
-          const productName = url.includes('amazon') ? 'Amazon Product' : 
-                              url.includes('flipkart') ? 'Flipkart Product' : 'Online Product';
-          
-          const fallbackInfo: ProductInfo = {
-            name: productName,
-            category: "Electronics"
-          };
-          
-          this.productCache[url] = fallbackInfo;
-          return fallbackInfo;
+          this.productCache[url] = result.productInfo;
+          return result.productInfo;
         }
       } catch (error) {
         console.error("Error extracting product details:", error);
@@ -404,39 +369,146 @@ Here are some general shopping tips:
       
       console.log("Making API call to search for:", searchQuery);
       
-      // Generate fallback data based on input
-      console.log("Generating fallback data for search");
-      
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Choose the most appropriate fallback data based on search query
-      let fallbackData: any[] = [];
-      
-      if (inputType === 'url' && input.toLowerCase().includes('amazon')) {
-        // Generate product data for Amazon URL
-        if (input.toLowerCase().includes('boat') || input.toLowerCase().includes('airdopes')) {
-          return this.generateBoatAirdopesFallbackData();
-        } else if (input.toLowerCase().includes('iphone')) {
-          return this.generateIPhoneFallbackData();
-        } else if (input.toLowerCase().includes('samsung')) {
-          return this.generateSamsungFallbackData();
-        } else {
-          return this.generateGenericFallbackData("Amazon Product");
+      const requestBody: any = {
+        url: inputType === 'url' ? cleanInput : null,
+        query: inputType === 'name' ? searchQuery : null,
+        action: 'price_comparison',
+        options: {
+          country: location.country || 'India',
+          city: location.city || 'Mumbai',
+          stores: ['amazon', 'flipkart', 'croma', 'reliance digital', 'tata cliq', 'vijay sales']
         }
-      } else if (inputType === 'name') {
-        // Generate product data based on search term
-        const lowerInput = input.toLowerCase();
+      };
+      
+      console.log("Request payload:", JSON.stringify(requestBody));
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      
+      try {
+        const response = await fetch(this.apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal
+        });
         
-        if (lowerInput.includes('boat') || lowerInput.includes('airdopes')) {
-          return this.generateBoatAirdopesFallbackData();
-        } else if (lowerInput.includes('iphone')) {
-          return this.generateIPhoneFallbackData();
-        } else if (lowerInput.includes('samsung')) {
-          return this.generateSamsungFallbackData();
-        } else {
-          return this.generateGenericFallbackData(input);
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          console.error("Crawl4AI API returned error status:", response.status);
+          throw new Error(`API returned status ${response.status}`);
         }
+        
+        const result = await response.json();
+        console.log("Crawl4AI response:", result);
+        
+        if (result.success && result.data) {
+          result.data = result.data.map((store: any) => {
+            store.url = productInfo ? 
+                        this.generateStoreUrl(store.store, productInfo) : 
+                        store.url;
+            
+            if (store.price) {
+              store.price = this.formatPrice(store.price);
+            }
+            
+            return store;
+          });
+          
+          const formattedResult: CrawlStatusResponse = {
+            success: true,
+            status: "completed",
+            completed: result.data.length,
+            total: result.data.length,
+            creditsUsed: 0,
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            data: result.data,
+            productInfo: result.productInfo || productInfo
+          };
+          
+          formattedResult._cachedAt = Date.now();
+          this.cache[cacheKey] = formattedResult;
+          
+          return formattedResult;
+        } else if (!result.success) {
+          console.error("API returned error:", result.error);
+          throw new Error(result.error || "API returned unsuccessful response");
+        }
+      } catch (fetchError) {
+        console.error("Error during API call:", fetchError);
+        
+        if (fetchError.name === 'AbortError') {
+          throw new Error("Search request timed out. Please try again later.");
+        }
+        
+        throw fetchError;
+      }
+      
+      console.log("Generating fallback data, no results returned from API");
+      
+      if (input.toLowerCase().includes('boat') || input.toLowerCase().includes('airdopes')) {
+        console.log("Generating fallback data for boAt product");
+        
+        const fallbackResult: CrawlStatusResponse = {
+          success: true,
+          status: "completed",
+          completed: 5,
+          total: 5,
+          creditsUsed: 0,
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          data: [
+            {
+              store: "Amazon",
+              price: "₹1,299",
+              url: "https://www.amazon.in/s?k=boat+airdopes",
+              vendor_rating: "4.2",
+              available: true
+            },
+            {
+              store: "Flipkart",
+              price: "₹1,199",
+              url: "https://www.flipkart.com/search?q=boat%20airdopes",
+              regular_price: 1499,
+              discount_percentage: 20,
+              vendor_rating: "4.3",
+              available: true
+            },
+            {
+              store: "Croma",
+              price: "₹1,349",
+              url: "https://www.croma.com/searchB?q=boat%20airdopes",
+              vendor_rating: "4.0",
+              available: true
+            },
+            {
+              store: "Reliance Digital",
+              price: "₹1,249",
+              url: "https://www.reliancedigital.in/search?q=boat%20airdopes",
+              regular_price: 1599,
+              discount_percentage: 22,
+              vendor_rating: "4.1",
+              available: true
+            },
+            {
+              store: "Vijay Sales",
+              price: "₹1,399",
+              url: "https://www.vijaysales.com/search/boat-airdopes",
+              vendor_rating: "3.9",
+              available: true
+            }
+          ],
+          productInfo: {
+            name: "boAt Airdopes Bluetooth Truly Wireless Earbuds",
+            brand: "boAt",
+            category: "Earbuds"
+          }
+        };
+        
+        fallbackResult._cachedAt = Date.now();
+        this.cache[cacheKey] = fallbackResult;
+        
+        return fallbackResult;
       }
       
       return {
@@ -453,247 +525,5 @@ Here are some general shopping tips:
           : "An unexpected error occurred. Please try again later."
       };
     }
-  }
-  
-  // New helper methods to generate different types of fallback data
-  private static generateBoatAirdopesFallbackData(): CrawlStatusResponse {
-    return {
-      success: true,
-      status: "completed",
-      completed: 5,
-      total: 5,
-      creditsUsed: 0,
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      data: [
-        {
-          store: "Amazon",
-          price: "₹1,299",
-          url: "https://www.amazon.in/s?k=boat+airdopes",
-          vendor_rating: "4.2",
-          available: true
-        },
-        {
-          store: "Flipkart",
-          price: "₹1,199",
-          url: "https://www.flipkart.com/search?q=boat%20airdopes",
-          regular_price: 1499,
-          discount_percentage: 20,
-          vendor_rating: "4.3",
-          available: true
-        },
-        {
-          store: "Croma",
-          price: "₹1,349",
-          url: "https://www.croma.com/searchB?q=boat%20airdopes",
-          vendor_rating: "4.0",
-          available: true
-        },
-        {
-          store: "Reliance Digital",
-          price: "₹1,249",
-          url: "https://www.reliancedigital.in/search?q=boat%20airdopes",
-          regular_price: 1599,
-          discount_percentage: 22,
-          vendor_rating: "4.1",
-          available: true
-        },
-        {
-          store: "Vijay Sales",
-          price: "₹1,399",
-          url: "https://www.vijaysales.com/search/boat-airdopes",
-          vendor_rating: "3.9",
-          available: true
-        }
-      ],
-      productInfo: {
-        name: "boAt Airdopes Bluetooth Truly Wireless Earbuds",
-        brand: "boAt",
-        category: "Earbuds"
-      }
-    };
-  }
-  
-  private static generateIPhoneFallbackData(): CrawlStatusResponse {
-    return {
-      success: true,
-      status: "completed",
-      completed: 5,
-      total: 5,
-      creditsUsed: 0,
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      data: [
-        {
-          store: "Amazon",
-          price: "₹69,999",
-          url: "https://www.amazon.in/s?k=iphone",
-          vendor_rating: "4.5",
-          available: true
-        },
-        {
-          store: "Flipkart",
-          price: "₹68,499",
-          url: "https://www.flipkart.com/search?q=iphone",
-          regular_price: 79999,
-          discount_percentage: 14,
-          vendor_rating: "4.6",
-          available: true
-        },
-        {
-          store: "Croma",
-          price: "₹70,990",
-          url: "https://www.croma.com/searchB?q=iphone",
-          vendor_rating: "4.3",
-          available: true
-        },
-        {
-          store: "Reliance Digital",
-          price: "₹69,490",
-          url: "https://www.reliancedigital.in/search?q=iphone",
-          regular_price: 79990,
-          discount_percentage: 13,
-          vendor_rating: "4.4",
-          available: true
-        },
-        {
-          store: "Vijay Sales",
-          price: "₹71,900",
-          url: "https://www.vijaysales.com/search/iphone",
-          vendor_rating: "4.2",
-          available: true
-        }
-      ],
-      productInfo: {
-        name: "Apple iPhone 13 (128GB)",
-        brand: "Apple",
-        category: "Smartphones",
-        model: "iPhone 13"
-      }
-    };
-  }
-  
-  private static generateSamsungFallbackData(): CrawlStatusResponse {
-    return {
-      success: true,
-      status: "completed",
-      completed: 5,
-      total: 5,
-      creditsUsed: 0,
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      data: [
-        {
-          store: "Amazon",
-          price: "₹54,999",
-          url: "https://www.amazon.in/s?k=samsung+galaxy",
-          vendor_rating: "4.3",
-          available: true
-        },
-        {
-          store: "Flipkart",
-          price: "₹53,499",
-          url: "https://www.flipkart.com/search?q=samsung%20galaxy",
-          regular_price: 64999,
-          discount_percentage: 18,
-          vendor_rating: "4.4",
-          available: true
-        },
-        {
-          store: "Croma",
-          price: "₹55,990",
-          url: "https://www.croma.com/searchB?q=samsung%20galaxy",
-          vendor_rating: "4.1",
-          available: true
-        },
-        {
-          store: "Reliance Digital",
-          price: "₹54,490",
-          url: "https://www.reliancedigital.in/search?q=samsung%20galaxy",
-          regular_price: 59990,
-          discount_percentage: 10,
-          vendor_rating: "4.2",
-          available: true
-        },
-        {
-          store: "Vijay Sales",
-          price: "₹56,900",
-          url: "https://www.vijaysales.com/search/samsung-galaxy",
-          vendor_rating: "4.0",
-          available: true
-        }
-      ],
-      productInfo: {
-        name: "Samsung Galaxy S21 FE 5G",
-        brand: "Samsung",
-        category: "Smartphones",
-        model: "Galaxy S21 FE"
-      }
-    };
-  }
-  
-  private static generateGenericFallbackData(productName: string): CrawlStatusResponse {
-    // Create a more descriptive product name
-    let enhancedName = productName;
-    if (productName.toLowerCase().includes('laptop')) {
-      enhancedName = "Premium Laptop with 16GB RAM";
-    } else if (productName.toLowerCase().includes('watch')) {
-      enhancedName = "Smartwatch with Fitness Tracking";
-    } else if (productName.toLowerCase().includes('tv')) {
-      enhancedName = "4K Smart TV with HDR";
-    } else {
-      enhancedName = `${productName} (Premium Model)`;
-    }
-    
-    return {
-      success: true,
-      status: "completed",
-      completed: 5,
-      total: 5,
-      creditsUsed: 0,
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      data: [
-        {
-          store: "Amazon",
-          price: "₹25,999",
-          url: `https://www.amazon.in/s?k=${encodeURIComponent(productName)}`,
-          vendor_rating: "4.2",
-          available: true
-        },
-        {
-          store: "Flipkart",
-          price: "₹24,499",
-          url: `https://www.flipkart.com/search?q=${encodeURIComponent(productName)}`,
-          regular_price: 29999,
-          discount_percentage: 18,
-          vendor_rating: "4.3",
-          available: true
-        },
-        {
-          store: "Croma",
-          price: "₹26,990",
-          url: `https://www.croma.com/searchB?q=${encodeURIComponent(productName)}`,
-          vendor_rating: "4.0",
-          available: true
-        },
-        {
-          store: "Reliance Digital",
-          price: "₹25,490",
-          url: `https://www.reliancedigital.in/search?q=${encodeURIComponent(productName)}`,
-          regular_price: 27990,
-          discount_percentage: 9,
-          vendor_rating: "4.1",
-          available: true
-        },
-        {
-          store: "Vijay Sales",
-          price: "₹27,900",
-          url: `https://www.vijaysales.com/search/${encodeURIComponent(productName).replace(/%20/g, '-')}`,
-          vendor_rating: "3.9",
-          available: true
-        }
-      ],
-      productInfo: {
-        name: enhancedName,
-        category: "Electronics"
-      }
-    };
   }
 }
