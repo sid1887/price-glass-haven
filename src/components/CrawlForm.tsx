@@ -90,7 +90,6 @@ export const CrawlForm = () => {
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const maxRetries = 1;
   const [autoRetryEnabled, setAutoRetryEnabled] = useState(true);
-  const searchInProgressRef = useRef(false);
 
   useEffect(() => {
     const location = getStoredUserLocation();
@@ -162,12 +161,9 @@ export const CrawlForm = () => {
       return;
     }
     
-    if (isLoading || searchInProgressRef.current) {
-      console.log("Search already in progress, ignoring request");
-      return;
+    if (isLoading) {
+      return; // Don't process if already loading
     }
-    
-    searchInProgressRef.current = true;
     
     if (retryTimeoutRef.current) {
       clearTimeout(retryTimeoutRef.current);
@@ -194,7 +190,6 @@ export const CrawlForm = () => {
           duration: 3000,
         });
         setIsLoading(false);
-        searchInProgressRef.current = false;
         return;
       }
       
@@ -234,11 +229,7 @@ export const CrawlForm = () => {
       const locationData = getStoredUserLocation();
       const searchOptions = locationData ? {
         country: locationData.country,
-        city: locationData.city,
-        coordinates: locationData.latitude && locationData.longitude ? {
-          latitude: locationData.latitude,
-          longitude: locationData.longitude
-        } : undefined
+        city: locationData.city
       } : undefined;
       
       const result = await FirecrawlService.crawlWebsite(searchTerm, searchOptions);
@@ -283,8 +274,8 @@ export const CrawlForm = () => {
           setSearchError("No results found for your search. Try a more specific product name or URL.");
         }
       } else {
-        console.error("Search failed:", result.error);
-        setSearchError(result.error || "Failed to search");
+        console.error("Search failed:", (result as ErrorResponse).error);
+        setSearchError((result as ErrorResponse).error || "Failed to search");
         
         const currentAttempts = searchAttempts + 1;
         setSearchAttempts(currentAttempts);
@@ -297,17 +288,15 @@ export const CrawlForm = () => {
           });
           
           retryTimeoutRef.current = setTimeout(() => {
-            retryTimeoutRef.current = null;
-            if (!searchInProgressRef.current) {
-              const mockEvent = { preventDefault: () => {} } as React.FormEvent;
-              handleSubmit(mockEvent, searchType);
-            }
+            if (isLoading) return; // Don't retry if already loading
+            const mockEvent = { preventDefault: () => {} } as React.FormEvent;
+            handleSubmit(mockEvent, searchType);
           }, 2000);
         } else {
           setAutoRetryEnabled(false);
           toast({
             title: "AI Search Error",
-            description: result.error || "Failed to search",
+            description: (result as ErrorResponse).error || "Failed to search",
             variant: "destructive",
             duration: 3000,
           });
@@ -326,9 +315,6 @@ export const CrawlForm = () => {
     } finally {
       setIsLoading(false);
       setProgress(100);
-      setTimeout(() => {
-        searchInProgressRef.current = false;
-      }, 500);
     }
   };
 
@@ -425,7 +411,6 @@ export const CrawlForm = () => {
     
     switch(storeName.toLowerCase()) {
       case 'amazon':
-      case 'amazon.in':
         return `https://www.amazon.in/s?k=${query}`;
       case 'flipkart':
         return `https://www.flipkart.com/search?q=${query}`;
@@ -433,13 +418,10 @@ export const CrawlForm = () => {
         return `https://www.croma.com/searchB?q=${query}`;
       case 'reliance digital':
         return `https://www.reliancedigital.in/search?q=${query}`;
-      case 'vijay sales':
-        return `https://www.vijaysales.com/search/${query}`;
       case 'tata cliq':
         return `https://www.tatacliq.com/search/?searchCategory=all&text=${query}`;
       default:
-        const storeDomain = storeName.toLowerCase().replace(/\s+/g, '');
-        return `https://www.google.com/search?q=${query}+site:${storeDomain}.com`;
+        return `https://www.google.com/search?q=${query}+${storeName}`;
     }
   };
 

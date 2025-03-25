@@ -1,137 +1,168 @@
 
-import { Country, COUNTRIES } from "@/components/CountrySelector";
+import { toast } from "sonner";
+import { Country } from "@/components/CountrySelector";
 
-interface StoredLocation {
-  country: string;
-  countryCode: string;
-  city?: string;
-  latitude?: number;
-  longitude?: number;
-  timestamp?: number;
+interface Coordinates {
+  latitude: number;
+  longitude: number;
 }
 
-// Store user location in localStorage
-export const storeUserLocation = (location: StoredLocation): void => {
-  const locationWithTimestamp = {
-    ...location,
-    timestamp: Date.now()
+interface GeocodingResult {
+  display_name: string;
+  address: {
+    country: string;
+    country_code: string;
+    state?: string;
+    city?: string;
+    town?: string;
+    village?: string;
   };
-  localStorage.setItem('user_location', JSON.stringify(locationWithTimestamp));
-  
-  // Dispatch an event to notify components about the location change
-  window.dispatchEvent(new CustomEvent('location-changed', { detail: locationWithTimestamp }));
-};
+}
 
-// Get stored user location from localStorage
-export const getStoredUserLocation = (): StoredLocation | null => {
-  try {
-    const locationData = localStorage.getItem('user_location');
-    if (!locationData) return null;
-    
-    return JSON.parse(locationData);
-  } catch (error) {
-    console.error("Error retrieving stored location:", error);
-    return null;
-  }
-};
-
-// Get user coordinates using browser geolocation API
-export const getUserCoordinates = (): Promise<{ latitude: number; longitude: number } | null> => {
+// Get user's coordinates using browser's geolocation API
+export const getUserCoordinates = async (): Promise<Coordinates | null> => {
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
-      console.error("Geolocation is not supported by this browser");
+      toast.error("Geolocation is not supported by your browser");
       resolve(null);
       return;
     }
-    
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
         resolve({
           latitude: position.coords.latitude,
-          longitude: position.coords.longitude
+          longitude: position.coords.longitude,
         });
       },
       (error) => {
-        console.error("Error getting user coordinates:", error);
+        console.error("Geolocation error:", error);
+        toast.error("Unable to get your location. Using default location instead.");
         resolve(null);
       },
       { 
         enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
+        timeout: 5000,
+        maximumAge: 0 
       }
     );
   });
 };
 
-// Reverse geocode coordinates to get address
-export const reverseGeocode = async (coordinates: { latitude: number; longitude: number }) => {
+// Reverse geocode coordinates to get address using OpenStreetMap API
+export const reverseGeocode = async (
+  coordinates: Coordinates
+): Promise<GeocodingResult | null> => {
   try {
     const { latitude, longitude } = coordinates;
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`;
     
-    // Use Nominatim (OpenStreetMap) for reverse geocoding
-    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`;
+    const response = await fetch(url, {
+      headers: {
+        "Accept-Language": "en-US,en;q=0.9",
+        "User-Agent": "PriceComparisonApp/1.0" // Nominatim requires a user agent
+      }
+    });
     
-    const response = await fetch(url);
     if (!response.ok) {
-      throw new Error("Failed to fetch address data");
+      throw new Error(`Geocoding API error: ${response.status}`);
     }
     
-    return await response.json();
+    const data = await response.json();
+    return data as GeocodingResult;
   } catch (error) {
-    console.error("Error in reverse geocoding:", error);
+    console.error("Reverse geocoding error:", error);
+    toast.error("Failed to determine your location");
     return null;
   }
 };
 
-// Extract city from geocode result
-export const getCityFromGeocode = (geocodeResult: any): string | null => {
-  if (!geocodeResult || !geocodeResult.address) return null;
+// Get nearby hypermarkets based on location (for future expansion)
+export const getNearbyHypermarkets = async (city: string, countryCode: string) => {
+  // This is a placeholder function that can be expanded later
+  // In a real implementation, you would query a database or API for hypermarkets in this location
   
-  // Different providers use different fields for city
-  return geocodeResult.address.city || 
-         geocodeResult.address.town || 
-         geocodeResult.address.village ||
-         geocodeResult.address.suburb ||
-         null;
+  console.log(`Getting hypermarkets near ${city}, ${countryCode}`);
+  
+  // Return some dummy data for now
+  return [
+    { name: "Local Hypermarket 1", distance: "2.3 km" },
+    { name: "Local Superstore", distance: "3.5 km" },
+    { name: "Regional Mart", distance: "5.1 km" }
+  ];
 };
 
-// Auto-detect country from browser geolocation
-export const autoDetectCountry = async (): Promise<{ country: Country, city?: string } | null> => {
+// Find the matching country from COUNTRIES array based on country code
+export const findCountryByCode = (countryCode: string, countries: Country[]): Country | null => {
+  const country = countries.find(
+    c => c.code.toLowerCase() === countryCode.toLowerCase()
+  );
+  return country || null;
+};
+
+// Auto-detect country and return the Country object
+export const autoDetectCountry = async (countries: Country[]): Promise<Country | null> => {
   try {
     // First try to get coordinates
     const coordinates = await getUserCoordinates();
-    if (!coordinates) return null;
-    
-    // Use coordinates to get country code
-    const geocodeResult = await reverseGeocode(coordinates);
-    if (!geocodeResult || !geocodeResult.address || !geocodeResult.address.country_code) {
+    if (!coordinates) {
       return null;
     }
     
+    // Reverse geocode to get the country
+    const geocodeResult = await reverseGeocode(coordinates);
+    if (!geocodeResult || !geocodeResult.address.country_code) {
+      return null;
+    }
+    
+    // Find the matching country in our list
     const countryCode = geocodeResult.address.country_code.toUpperCase();
-    const country = COUNTRIES.find(c => c.code === countryCode);
+    const country = findCountryByCode(countryCode, countries);
     
-    if (!country) return null;
+    if (country) {
+      return country;
+    }
     
-    // Get city if available
-    const city = getCityFromGeocode(geocodeResult);
-    
-    // Store the location
-    storeUserLocation({
-      country: country.name,
-      countryCode: country.code,
-      city: city || undefined,
-      latitude: coordinates.latitude,
-      longitude: coordinates.longitude
-    });
-    
-    return {
-      country,
-      city: city || undefined
-    };
+    return null;
   } catch (error) {
-    console.error("Error in autoDetectCountry:", error);
+    console.error("Error auto-detecting country:", error);
     return null;
   }
+};
+
+// Get the name of the city from geocoding result
+export const getCityFromGeocode = (geocodeResult: GeocodingResult): string | null => {
+  if (!geocodeResult || !geocodeResult.address) {
+    return null;
+  }
+  
+  // Try to get the city name from different address properties
+  return geocodeResult.address.city || 
+         geocodeResult.address.town || 
+         geocodeResult.address.village || 
+         null;
+};
+
+// Store user location data in localStorage
+export const storeUserLocation = (data: {
+  country: string;
+  countryCode: string;
+  city?: string;
+  latitude?: number;
+  longitude?: number;
+}) => {
+  localStorage.setItem('user_location', JSON.stringify(data));
+};
+
+// Get stored user location from localStorage
+export const getStoredUserLocation = () => {
+  const data = localStorage.getItem('user_location');
+  if (data) {
+    try {
+      return JSON.parse(data);
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
 };
