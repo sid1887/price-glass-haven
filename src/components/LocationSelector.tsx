@@ -4,11 +4,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MapPin, Building, Globe } from "lucide-react";
+import { MapPin, Building, Globe, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Country, COUNTRIES } from "@/components/CountrySelector";
 import { GeoLocationDetector } from "@/components/GeoLocationDetector";
-import { getStoredUserLocation } from "@/utils/geo";
+import { getStoredUserLocation, storeUserLocation } from "@/utils/geo";
 
 interface LocationSelectorProps {
   onLocationChange?: (location: {
@@ -24,6 +24,7 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onLocationCh
     country?: Country,
     city?: string
   } | null>(null);
+  const [isDetecting, setIsDetecting] = useState(false);
 
   // Load saved location on mount
   useEffect(() => {
@@ -47,6 +48,79 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onLocationCh
     }
     
     setOpen(false);
+  };
+
+  const handleManualDetection = async () => {
+    setIsDetecting(true);
+    try {
+      const result = await autoDetectCountry();
+      if (result && result.country) {
+        handleCountryDetected(result.country, result.city);
+        toast.success(`Location detected: ${result.city ? `${result.city}, ` : ''}${result.country.name}`, {
+          description: `Prices will now display in ${result.country.currency.name} (${result.country.currency.symbol})`,
+          duration: 3000,
+        });
+      } else {
+        toast.error("Could not detect your location", {
+          description: "Please try selecting your country manually",
+          duration: 3000,
+        });
+      }
+    } catch (error) {
+      console.error("Error detecting location:", error);
+      toast.error("Failed to detect location", {
+        description: "Please ensure location services are enabled",
+        duration: 3000,
+      });
+    } finally {
+      setIsDetecting(false);
+    }
+  };
+
+  // Auto-detect country using browser geolocation
+  const autoDetectCountry = async (): Promise<{ country: Country, city?: string } | null> => {
+    try {
+      // Get user coordinates from browser
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        });
+      });
+      
+      const { latitude, longitude } = position.coords;
+      
+      // Use the coordinates to get the country and city
+      const geocodeUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`;
+      
+      const response = await fetch(geocodeUrl);
+      const data = await response.json();
+      
+      if (data.address && data.address.country_code) {
+        const countryCode = data.address.country_code.toUpperCase();
+        const city = data.address.city || data.address.town || data.address.village;
+        
+        const country = COUNTRIES.find(c => c.code === countryCode);
+        if (country) {
+          // Store the location data
+          storeUserLocation({
+            country: country.name,
+            countryCode: country.code,
+            city: city || undefined,
+            latitude,
+            longitude
+          });
+          
+          return { country, city };
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error("Error in autoDetectCountry:", error);
+      return null;
+    }
   };
 
   return (
@@ -91,7 +165,28 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ onLocationCh
             </TabsList>
             
             <TabsContent value="detect" className="mt-4">
-              <GeoLocationDetector onDetected={handleCountryDetected} />
+              <div className="space-y-3">
+                {!isDetecting ? (
+                  <Button 
+                    variant="outline" 
+                    className="w-full flex gap-2 justify-center items-center py-6"
+                    onClick={handleManualDetection}
+                  >
+                    <MapPin className="h-4 w-4" />
+                    Auto-detect my location
+                  </Button>
+                ) : (
+                  <Button 
+                    variant="outline" 
+                    className="w-full flex gap-2 justify-center items-center py-6"
+                    disabled
+                  >
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Detecting location...
+                  </Button>
+                )}
+                <GeoLocationDetector onDetected={handleCountryDetected} />
+              </div>
             </TabsContent>
             
             <TabsContent value="city" className="mt-4">

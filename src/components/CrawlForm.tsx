@@ -89,6 +89,8 @@ export const CrawlForm = () => {
   } | null>(null);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const maxRetries = 1;
+  const [autoRetryEnabled, setAutoRetryEnabled] = useState(true);
+  const searchInProgressRef = useRef(false);
 
   useEffect(() => {
     const location = getStoredUserLocation();
@@ -160,6 +162,13 @@ export const CrawlForm = () => {
       return;
     }
     
+    if (isLoading || searchInProgressRef.current) {
+      console.log("Search already in progress, ignoring request");
+      return;
+    }
+    
+    searchInProgressRef.current = true;
+    
     if (retryTimeoutRef.current) {
       clearTimeout(retryTimeoutRef.current);
       retryTimeoutRef.current = null;
@@ -173,6 +182,7 @@ export const CrawlForm = () => {
     setEnhancedRatings(null);
     setProductInfo(null);
     setAiStatus("Starting AI-powered search...");
+    setAutoRetryEnabled(true);
 
     try {
       const searchTerm = searchType === 'url' ? url : productName;
@@ -184,6 +194,7 @@ export const CrawlForm = () => {
           duration: 3000,
         });
         setIsLoading(false);
+        searchInProgressRef.current = false;
         return;
       }
       
@@ -223,7 +234,11 @@ export const CrawlForm = () => {
       const locationData = getStoredUserLocation();
       const searchOptions = locationData ? {
         country: locationData.country,
-        city: locationData.city
+        city: locationData.city,
+        coordinates: locationData.latitude && locationData.longitude ? {
+          latitude: locationData.latitude,
+          longitude: locationData.longitude
+        } : undefined
       } : undefined;
       
       const result = await FirecrawlService.crawlWebsite(searchTerm, searchOptions);
@@ -268,13 +283,13 @@ export const CrawlForm = () => {
           setSearchError("No results found for your search. Try a more specific product name or URL.");
         }
       } else {
-        console.error("Search failed:", (result as ErrorResponse).error);
-        setSearchError((result as ErrorResponse).error || "Failed to search");
+        console.error("Search failed:", result.error);
+        setSearchError(result.error || "Failed to search");
         
         const currentAttempts = searchAttempts + 1;
         setSearchAttempts(currentAttempts);
         
-        if (currentAttempts <= maxRetries) {
+        if (currentAttempts <= maxRetries && autoRetryEnabled) {
           toast({
             title: "Retrying search",
             description: "First attempt didn't yield results. Trying again with enhanced parameters...",
@@ -282,17 +297,21 @@ export const CrawlForm = () => {
           });
           
           retryTimeoutRef.current = setTimeout(() => {
-            handleSubmit(e, searchType);
+            retryTimeoutRef.current = null;
+            if (!searchInProgressRef.current) {
+              const mockEvent = { preventDefault: () => {} } as React.FormEvent;
+              handleSubmit(mockEvent, searchType);
+            }
           }, 2000);
-          return;
+        } else {
+          setAutoRetryEnabled(false);
+          toast({
+            title: "AI Search Error",
+            description: result.error || "Failed to search",
+            variant: "destructive",
+            duration: 3000,
+          });
         }
-        
-        toast({
-          title: "AI Search Error",
-          description: (result as ErrorResponse).error || "Failed to search",
-          variant: "destructive",
-          duration: 3000,
-        });
       }
     } catch (error) {
       console.error('Error during search:', error);
@@ -303,9 +322,13 @@ export const CrawlForm = () => {
         variant: "destructive",
         duration: 3000,
       });
+      setAutoRetryEnabled(false);
     } finally {
       setIsLoading(false);
       setProgress(100);
+      setTimeout(() => {
+        searchInProgressRef.current = false;
+      }, 500);
     }
   };
 
@@ -402,6 +425,7 @@ export const CrawlForm = () => {
     
     switch(storeName.toLowerCase()) {
       case 'amazon':
+      case 'amazon.in':
         return `https://www.amazon.in/s?k=${query}`;
       case 'flipkart':
         return `https://www.flipkart.com/search?q=${query}`;
@@ -409,10 +433,13 @@ export const CrawlForm = () => {
         return `https://www.croma.com/searchB?q=${query}`;
       case 'reliance digital':
         return `https://www.reliancedigital.in/search?q=${query}`;
+      case 'vijay sales':
+        return `https://www.vijaysales.com/search/${query}`;
       case 'tata cliq':
         return `https://www.tatacliq.com/search/?searchCategory=all&text=${query}`;
       default:
-        return `https://www.google.com/search?q=${query}+${storeName}`;
+        const storeDomain = storeName.toLowerCase().replace(/\s+/g, '');
+        return `https://www.google.com/search?q=${query}+site:${storeDomain}.com`;
     }
   };
 
