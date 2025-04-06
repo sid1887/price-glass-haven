@@ -1,5 +1,4 @@
-
-import { supabaseClient } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/client";
 
 // Response interfaces
 interface AIResponse {
@@ -156,7 +155,7 @@ export class FirecrawlService {
       }
       
       // Add timeout to prevent hanging requests
-      const searchPromise = supabaseClient.functions.invoke('scrape-prices', {
+      const searchPromise = supabase.functions.invoke('scrape-prices', {
         body: searchParams
       });
       
@@ -219,7 +218,7 @@ export class FirecrawlService {
       console.log("Calling Crawl4AI to extract product details from URL:", url);
       
       // API call to scrape-prices edge function with extract_product_info action
-      const response = await supabaseClient.functions.invoke('scrape-prices', {
+      const response = await supabase.functions.invoke('scrape-prices', {
         body: {
           query: url,
           type: 'url',
@@ -259,7 +258,7 @@ export class FirecrawlService {
         searchParams.locationData = locationData;
       }
       
-      const response = await supabaseClient.functions.invoke('scrape-prices', {
+      const response = await supabase.functions.invoke('scrape-prices', {
         body: searchParams
       });
       
@@ -457,7 +456,7 @@ export class FirecrawlService {
         url,
         regular_price: regularPrice,
         discount_percentage: discountPercentage,
-        vendor_rating: (3 + (Math.random() * 2)).toFixed(1),  // 3.0 to 5.0 rating
+        vendor_rating: parseFloat((3 + (Math.random() * 2)).toFixed(1)),  // Fixed: Make this a number, not a string
         available: Math.random() > 0.1,  // 90% chance of being available
         store_locations: storeLocations
       };
@@ -505,7 +504,7 @@ export class FirecrawlService {
   ): Promise<AIResponse> {
     try {
       // Call the scrape-prices edge function with chat type
-      const response = await supabaseClient.functions.invoke('scrape-prices', {
+      const response = await supabase.functions.invoke('scrape-prices', {
         body: {
           query,
           type: 'chat',
@@ -541,7 +540,7 @@ export class FirecrawlService {
       }
       
       // Call the scrape-prices edge function with summarize type
-      const response = await supabaseClient.functions.invoke('scrape-prices', {
+      const response = await supabase.functions.invoke('scrape-prices', {
         body: {
           query: description,
           type: 'summarize',

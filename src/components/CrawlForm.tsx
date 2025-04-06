@@ -253,7 +253,13 @@ export const CrawlForm = () => {
           description: "Found the best deals for you",
           duration: 3000,
         });
-        setCrawlResult(result);
+        
+        const crawlStatusResult: CrawlStatusResponse = {
+          ...result,
+          success: true as const
+        };
+        
+        setCrawlResult(crawlStatusResult);
         
         if (result.productInfo && result.productInfo.name) {
           setProductInfo(result.productInfo);

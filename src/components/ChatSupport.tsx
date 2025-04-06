@@ -81,13 +81,19 @@ export const ChatSupport = () => {
         content: message
       });
       
-      const response = await FirecrawlService.askGeminiAI(message, previousMessages);
+      // Fix: Pass the current user message as the first parameter, 
+      // and use 'chat' as context instead of previousMessages array
+      const response = await FirecrawlService.askGeminiAI(
+        message,
+        'chat',
+        previousMessages
+      );
       
       if (response.success) {
         const aiMessage: Message = {
           id: Date.now().toString(),
           role: 'assistant',
-          content: response.message,
+          content: response.message || "Sorry, I couldn't process that request.",
           timestamp: new Date()
         };
         setMessages(prev => [...prev, aiMessage]);
