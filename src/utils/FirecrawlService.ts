@@ -501,18 +501,18 @@ export class FirecrawlService {
 
   // AI assistant methods
   static async askGeminiAI(
-    query: string, 
-    context: string = 'general',
-    previousMessages: {role: string, content: string}[] = []
-  ): Promise<AIResponse> {
+    question: string,
+    topic: string,
+    context: { role: string; content: string; }[]
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
     try {
       // Call the scrape-prices edge function with chat type
       const response = await supabase.functions.invoke('scrape-prices', {
         body: {
-          query,
+          query: question,
           type: 'chat',
           context,
-          previousMessages
+          previousMessages: context
         }
       });
       

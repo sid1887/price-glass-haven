@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,12 +67,8 @@ export function ChatSupport() {
         content: input
       });
       
-      // Pass the previous messages as a string context
-      const context = previousMessages
-        .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
-        .join('\n');
-      
-      const response = await FirecrawlService.askGeminiAI(input, 'shopping', context);
+      // Pass the formatted messages directly as context (not as a string)
+      const response = await FirecrawlService.askGeminiAI(input, 'shopping', previousMessages);
       
       if (response.success && response.message) {
         const botMessage: Message = {
