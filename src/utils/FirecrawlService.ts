@@ -450,13 +450,16 @@ export class FirecrawlService {
       // Generate store locations if city is available
       const storeLocations = generateStoreLocations(store, locationData?.city);
       
+      // Fix: Ensure vendor_rating is a number, not a string
+      const vendorRating = parseFloat((3 + (Math.random() * 2)).toFixed(1));
+      
       return {
         store,
         price: `₹${price.toLocaleString()}`,
         url,
         regular_price: regularPrice,
         discount_percentage: discountPercentage,
-        vendor_rating: parseFloat((3 + (Math.random() * 2)).toFixed(1)),  // Fixed: Make this a number, not a string
+        vendor_rating: vendorRating,
         available: Math.random() > 0.1,  // 90% chance of being available
         store_locations: storeLocations
       };

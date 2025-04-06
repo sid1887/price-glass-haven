@@ -9,7 +9,128 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      price_records: {
+        Row: {
+          availability_count: number | null
+          available: boolean | null
+          created_at: string
+          currency: string | null
+          discount_percentage: number | null
+          id: string
+          last_updated: string | null
+          offers: Json | null
+          price: number
+          product_id: string | null
+          regular_price: number | null
+          store_name: string
+          url: string | null
+          vendor_rating: number | null
+        }
+        Insert: {
+          availability_count?: number | null
+          available?: boolean | null
+          created_at?: string
+          currency?: string | null
+          discount_percentage?: number | null
+          id?: string
+          last_updated?: string | null
+          offers?: Json | null
+          price: number
+          product_id?: string | null
+          regular_price?: number | null
+          store_name: string
+          url?: string | null
+          vendor_rating?: number | null
+        }
+        Update: {
+          availability_count?: number | null
+          available?: boolean | null
+          created_at?: string
+          currency?: string | null
+          discount_percentage?: number | null
+          id?: string
+          last_updated?: string | null
+          offers?: Json | null
+          price?: number
+          product_id?: string | null
+          regular_price?: number | null
+          store_name?: string
+          url?: string | null
+          vendor_rating?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_records_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          brand: string | null
+          category: string | null
+          created_at: string
+          id: string
+          image_url: string | null
+          model: string | null
+          name: string
+          specifications: Json | null
+          url: string | null
+          user_id: string | null
+        }
+        Insert: {
+          brand?: string | null
+          category?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          model?: string | null
+          name: string
+          specifications?: Json | null
+          url?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          brand?: string | null
+          category?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          model?: string | null
+          name?: string
+          specifications?: Json | null
+          url?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          email: string | null
+          full_name: string | null
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          email?: string | null
+          full_name?: string | null
+          id: string
+          updated_at?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

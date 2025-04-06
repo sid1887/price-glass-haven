@@ -256,7 +256,13 @@ export const CrawlForm = () => {
         
         const crawlStatusResult: CrawlStatusResponse = {
           ...result,
-          success: true as const
+          success: true as const,
+          status: result.status || "completed",
+          completed: result.completed || 0,
+          total: result.total || 0,
+          creditsUsed: result.creditsUsed || 1,
+          expiresAt: result.expiresAt || new Date().toISOString(),
+          data: result.data || []
         };
         
         setCrawlResult(crawlStatusResult);
